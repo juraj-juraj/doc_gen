@@ -1,0 +1,46 @@
+[tool.poetry]
+name = "code_documenter"
+version = "0.0.1"
+description = "Bachelor thesis, aiming to generate documentation from undocumented code"
+authors = ["Juraj Novosad <xnovos13@vutbr.cz>"]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+torch = {version = "^2.0.1", source = "pytorch"}
+torchaudio = {version = "^2.0.2", source = "pytorch"}
+torchvision = {version = "^0.15.2", source = "pytorch"}
+pylint = "^2.17.5"
+transformers = "^4.33.0"
+accelerate = "^0.22.0"
+sentencepiece = "0.1.99"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.2.0"
+pytest-cov = "^4.0.0"
+pytest-env = "^0.8.1"
+pytest-random-order = "^1.1.0"
+pre-commit = "^3.0.0"
+black = "^23.3.0"
+
+[[tool.poetry.source]]
+name ="pytorch"
+url = "https://download.pytorch.org/whl/cu118"
+priority = "default"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+preview = true
+
+[tool.pylint]
+max-line-length = 120
+disable = [
+    "C0114", # Missing module docstring (missing-module-docstring)
+    "C0115", # Missing class docstring (missing-class-docstring)
+    "C0116", # Missing function or method docstring (missing-function-docstring)
+    "R0903", # Too few public methods (1/2) (too-few-public-methods)
+]
