@@ -14,17 +14,23 @@ transformers = "^4.33.0"
 accelerate = "^0.22.0"
 sentencepiece = "0.1.99"
 
-[tool.poetry.group.dev.dependencies]
+[tool.poetry.dev-dependencies]
 pytest = "^7.2.0"
 pytest-cov = "^4.0.0"
 pytest-env = "^0.8.1"
 pytest-random-order = "^1.1.0"
 pre-commit = "^3.0.0"
 black = "^23.3.0"
+pylint="^2.11.1"
+isort="^5.0.0"
 
 [[tool.poetry.source]]
-name ="pytorch"
+name = "pytorch"
 url = "https://download.pytorch.org/whl/cu118"
+priority = "supplemental"
+
+[[tool.poetry.source]]
+name = "PyPI"
 priority = "default"
 
 [build-system]
@@ -32,7 +38,7 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-line-length = 100
+line-length = 120
 target-version = ['py38']
 preview = true
 
