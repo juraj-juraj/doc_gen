@@ -4,10 +4,11 @@
 # This code is based of https://github.com/huggingface/transformers/blob/main/examples/pytorch/translation/run_translation.py
 # It has been changed to be usable with training coding llm
 
+import argparse
 import logging
 import os
+import pathlib
 import sys
-import warnings
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -16,6 +17,7 @@ import evaluate
 import numpy as np
 import transformers
 from datasets import load_dataset
+from trainer_stat_collector import TrainerStatCollector
 from transformers import (
     AutoConfig,
     AutoModelForSeq2SeqLM,
@@ -33,16 +35,6 @@ from transformers import (
     set_seed,
 )
 from transformers.trainer_utils import get_last_checkpoint
-from transformers.utils import check_min_version, send_example_telemetry
-from transformers.utils.versions import require_version
-
-# Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-# check_min_version("4.35.0.dev0")
-
-require_version(
-    "datasets>=1.8.0",
-    "To fix: pip install -r examples/pytorch/translation/requirements.txt",
-)
 
 logger = logging.getLogger(__name__)
 
@@ -103,24 +95,13 @@ class DataTrainingArguments:
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
 
-    dataset_name: Optional[str] = field(
+    dataset_name: str = field(
         default=None,
         metadata={"help": "The name of the dataset to use (via the datasets library)."},
     )
     dataset_config_name: Optional[str] = field(
         default=None,
         metadata={"help": "The configuration name of the dataset to use (via the datasets library)."},
-    )
-    train_file: Optional[str] = field(default=None, metadata={"help": "The input training data file (a jsonlines)."})
-    validation_file: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "An optional input evaluation data file to evaluate the metrics (sacrebleu) on a jsonlines file."
-        },
-    )
-    test_file: Optional[str] = field(
-        default=None,
-        metadata={"help": "An optional input test data file to evaluate the metrics (sacrebleu) on a jsonlines file."},
     )
     overwrite_cache: bool = field(
         default=False,
@@ -159,7 +140,7 @@ class DataTrainingArguments:
             )
         },
     )
-    pad_to_max_length: bool = field(
+    pad_to_max_length: bool = field(  # TODO try setting it to true
         default=False,
         metadata={
             "help": (
@@ -227,39 +208,23 @@ class DataTrainingArguments:
     )
 
     def __post_init__(self):
-        if self.dataset_name is None and self.train_file is None and self.validation_file is None:
-            raise ValueError("Need either a dataset name or a training/validation file.")
+        if self.dataset_name is None:
+            raise ValueError("Please provide dataset name, or path to local .ds file")
 
-        # accepting both json and jsonl file extensions, as
-        # many jsonlines files actually have a .json extension
-        valid_extensions = ["json", "jsonl"]
-
-        if self.train_file is not None:
-            extension = self.train_file.split(".")[-1]
-            assert extension in valid_extensions, "`train_file` should be a jsonlines file."
-        if self.validation_file is not None:
-            extension = self.validation_file.split(".")[-1]
-            assert extension in valid_extensions, "`validation_file` should be a jsonlines file."
         if self.val_max_target_length is None:
             self.val_max_target_length = self.max_target_length
 
 
 def main():
-    # See all possible arguments in src/transformers/training_args.py
-    # or by passing the --help flag to this script.
-    # We now keep distinct sets of args, for a cleaner separation of concerns.
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--configuration", type="str", required=True, help="Json configuration for training")
+    args = parser.parse_args()
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments))
-    if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
-        # If we pass only one argument to the script and it's the path to a json file,
-        # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
-    else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    hf_parser = HfArgumentParser((ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments))
+    model_args, data_args, training_args = hf_parser.parse_json_file(json_file=os.path.abspath(args.configuration))
 
-    # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
-    # information sent is the one passed as arguments along with your Python/PyTorch versions.
-    send_example_telemetry("run_translation", model_args, data_args)
+    json_configuration = pathlib.Path(args.configuration).read_text(encoding="utf-8")
+    stat_collector = TrainerStatCollector(train_paramers=json_configuration)
 
     # Setup logging
     logging.basicConfig(
@@ -267,6 +232,7 @@ def main():
         datefmt="%m/%d/%Y %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
+    logger.addHandler(logging.FileHandler(filename=f"{stat_collector.init_report_directory()}/training.log"))
 
     if training_args.should_log:
         # The default of training_args.log_level is passive, so we set log level at info here to have that default.
@@ -287,18 +253,6 @@ def main():
     )
     logger.info(f"Training/evaluation parameters {training_args}")
 
-    if data_args.source_prefix is None and model_args.model_name_or_path in [
-        "t5-small",
-        "t5-base",
-        "t5-large",
-        "t5-3b",
-        "t5-11b",
-    ]:
-        logger.warning(
-            "You're running a t5 model but didn't provide a source prefix, which is expected, e.g. with "
-            "`--source_prefix 'translate English to German: ' `"
-        )
-
     # Detecting last checkpoint.
     last_checkpoint = None
     if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
@@ -317,42 +271,13 @@ def main():
     # Set seed before initializing model.
     set_seed(training_args.seed)
 
-    # Get the datasets: you can either provide your own JSON training and evaluation files (see below)
-    # or just provide the name of one of the public datasets available on the hub at https://huggingface.co/datasets/
-    # (the dataset will be downloaded automatically from the datasets Hub).
-    #
-    # For translation, only JSON files are supported, with one field named "translation" containing two keys for the
-    # source and target languages (unless you adapt what follows).
-    #
-    # In distributed training, the load_dataset function guarantee that only one local process can concurrently
-    # download the dataset.
-    if data_args.dataset_name is not None:
-        # Downloading and loading a dataset from the hub.
-        raw_datasets = load_dataset(
-            data_args.dataset_name,
-            data_args.dataset_config_name,
-            cache_dir=model_args.cache_dir,
-            token=model_args.token,
-        )
-    else:
-        data_files = {}
-        if data_args.train_file is not None:
-            data_files["train"] = data_args.train_file
-            extension = data_args.train_file.split(".")[-1]
-        if data_args.validation_file is not None:
-            data_files["validation"] = data_args.validation_file
-            extension = data_args.validation_file.split(".")[-1]
-        if data_args.test_file is not None:
-            data_files["test"] = data_args.test_file
-            extension = data_args.test_file.split(".")[-1]
-        raw_datasets = load_dataset(
-            extension,
-            data_files=data_files,
-            cache_dir=model_args.cache_dir,
-            token=model_args.token,
-        )
-    # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
-    # https://huggingface.co/docs/datasets/loading.
+    # Downloading and loading a dataset from the hub.
+    raw_datasets = load_dataset(
+        data_args.dataset_name,
+        data_args.dataset_config_name,
+        cache_dir=model_args.cache_dir,
+        token=model_args.token,
+    )
 
     # Load pretrained model and tokenizer
     #
@@ -440,9 +365,6 @@ def main():
             padding=padding,
             truncation=True,
         )
-
-        logger.info(f"labels input ids: {labels.data.keys()}")
-        logger.info(f"model inputs: {model_inputs.data.keys()}")
 
         # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
         # padding in the loss.
@@ -549,6 +471,7 @@ def main():
         result = {k: round(v, 4) for k, v in result.items()}
         return result
 
+    trainer_stat_collector = TrainerStatCollector()
     # Initialize our Trainer
     trainer = Seq2SeqTrainer(
         model=model,
@@ -558,6 +481,7 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics if training_args.predict_with_generate else None,
+        callbacks=[trainer_stat_collector],
     )
 
     # Training
