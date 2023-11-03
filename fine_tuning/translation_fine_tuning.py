@@ -217,7 +217,7 @@ class DataTrainingArguments:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--configuration", type="str", required=True, help="Json configuration for training")
+    parser.add_argument("configuration", type=str, help="Json configuration for training")
     args = parser.parse_args()
 
     hf_parser = HfArgumentParser((ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments))
@@ -322,15 +322,8 @@ def main():
         data_args.source_prefix if data_args.source_prefix is not None else ""
     )  # prefix should be something like: "Generate docstring for this python code: "
 
-    # Preprocessing the datasets.
-    # We need to tokenize inputs and targets.
-    if training_args.do_train:
-        column_names = raw_datasets["train"].column_names
-    elif training_args.do_eval:
-        column_names = raw_datasets["validation"].column_names
-    elif training_args.do_predict:
-        column_names = raw_datasets["test"].column_names
-    else:
+
+    if(any(args.)):
         logger.info("There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
         return
 
@@ -388,7 +381,7 @@ def main():
                 preprocess_function,
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
-                remove_columns=column_names,
+                remove_columns=raw_datasets["train"].column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on train dataset",
             )
@@ -406,7 +399,7 @@ def main():
                 preprocess_function,
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
-                remove_columns=column_names,
+                remove_columns=raw_datasets["validation"].column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on validation dataset",
             )
@@ -424,7 +417,7 @@ def main():
                 preprocess_function,
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
-                remove_columns=column_names,
+                remove_columns=raw_datasets["test"].column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on prediction dataset",
             )
@@ -471,7 +464,6 @@ def main():
         result = {k: round(v, 4) for k, v in result.items()}
         return result
 
-    trainer_stat_collector = TrainerStatCollector()
     # Initialize our Trainer
     trainer = Seq2SeqTrainer(
         model=model,
@@ -481,7 +473,7 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics if training_args.predict_with_generate else None,
-        callbacks=[trainer_stat_collector],
+        callbacks=[stat_collector],
     )
 
     # Training
@@ -499,6 +491,8 @@ def main():
             data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
         )
         metrics["train_samples"] = min(max_train_samples, len(train_dataset))
+
+        stat_collector.add_text_field("Train metrics", trainer.metrics_format(metrics))
 
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
@@ -519,6 +513,7 @@ def main():
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
+        stat_collector.add_text_field("Evaluate metrics", trainer.metrics_format(metrics))
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
 
@@ -537,23 +532,27 @@ def main():
         )
         metrics["predict_samples"] = min(max_predict_samples, len(predict_dataset))
 
+        stat_collector.add_text_field(trainer.metrics_format(metrics))
         trainer.log_metrics("predict", metrics)
         trainer.save_metrics("predict", metrics)
 
-        if trainer.is_world_process_zero():
-            if training_args.predict_with_generate:
-                predictions = predict_results.predictions
-                predictions = np.where(predictions != -100, predictions, tokenizer.pad_token_id)
-                predictions = tokenizer.batch_decode(
-                    predictions,
-                    skip_special_tokens=True,
-                    clean_up_tokenization_spaces=True,
-                )
-                predictions = [pred.strip() for pred in predictions]
-                output_prediction_file = os.path.join(training_args.output_dir, "generated_predictions.txt")
-                with open(output_prediction_file, "w", encoding="utf-8") as writer:
-                    writer.write("\n".join(predictions))
+        if training_args.predict_with_generate:
+            predictions = predict_results.predictions
+            predictions = np.where(predictions != -100, predictions, tokenizer.pad_token_id)
+            predictions = tokenizer.batch_decode(
+                predictions,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=True,
+            )
+            predictions = [pred.strip() for pred in predictions]
+            output_prediction_file = pathlib.Path(stat_collector.report_dir) / "generated_predictions.txt"
+            output_prediction_file.write_text("\n".join(predictions), encoding="utf-8")
+            example_predictions = (
+                f"```python\n {predict_dataset['function'][0]}\n```\ndocstring:\n```python\n {predictions[0]}\n```\n"
+            )
+            stat_collector.add_text_field("Example predictions", example_predictions)
 
+    stat_collector.create_summary()
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "translation"}
     if data_args.dataset_name is not None:
         kwargs["dataset_tags"] = data_args.dataset_name
