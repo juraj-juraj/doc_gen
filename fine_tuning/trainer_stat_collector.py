@@ -35,7 +35,7 @@ class TrainerStatCollector(TrainerCallback):
     report_dir: str = field(default=None)
 
     def init_report_directory(self) -> str:
-        self.report_dir = time.strftime("report-%x:%X", self.start_time)
+        self.report_dir = time.strftime("report-%y_%m_%d-%H_%M_%S", self.start_time)
         if os.path.exists(self.report_dir):
             raise StatCollectorException(f"Directory for reports already exists: {self.report_dir}")
         os.mkdir(self.report_dir)
