@@ -81,15 +81,16 @@ class TrainerStatCollector(TrainerCallback):
     def create_summary(self):
         if self.report_dir == None:
             self.init_report_directory()
+        self._create_loss_graph()
         report = (
             f"# {time.strftime('%x %X', self.start_time)} Report {self.train_paramers['model_name_or_path']}\n"
             f"Git commit: {self.commit_hash}\n"
             "## Train parameters \n"
             "```json\n"
             f"{json.dumps(self.train_paramers, indent=2)}"
-            "```\n"
+            "\n```\n"
             "## Training loss progress\n"
-            '![Training loss progress](loss_progress.png "Training loss progress)\n'
+            '![Training loss progress](loss_progress.png "Training loss progress")\n'
         )
         for heading, body in self.text_fields.items():
             paragraph = f"## {heading} \n {body}\n"

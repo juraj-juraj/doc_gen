@@ -8,6 +8,7 @@ import argparse
 import logging
 import os
 import pathlib
+import json
 import sys
 from dataclasses import dataclass, field
 from typing import Optional
@@ -121,7 +122,7 @@ class DataTrainingArguments:
         },
     )
     max_target_length: Optional[int] = field(
-        default=128,
+        default=256,
         metadata={
             "help": (
                 "The maximum total sequence length for target text after tokenization. Sequences longer "
@@ -224,6 +225,7 @@ def main():
     model_args, data_args, training_args = hf_parser.parse_json_file(json_file=os.path.abspath(args.configuration))
 
     json_configuration = pathlib.Path(args.configuration).read_text(encoding="utf-8")
+    json_configuration = json.loads(json_configuration)
     stat_collector = TrainerStatCollector(train_paramers=json_configuration)
 
     # Setup logging
@@ -322,8 +324,7 @@ def main():
         data_args.source_prefix if data_args.source_prefix is not None else ""
     )  # prefix should be something like: "Generate docstring for this python code: "
 
-
-    if(any(args.)):
+    if not any([training_args.do_train, training_args.do_eval, training_args.do_predict]):
         logger.info("There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
         return
 
@@ -417,7 +418,7 @@ def main():
                 preprocess_function,
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
-                remove_columns=raw_datasets["test"].column_names,
+                # remove_columns=raw_datasets["test"].column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on prediction dataset",
             )
@@ -532,7 +533,7 @@ def main():
         )
         metrics["predict_samples"] = min(max_predict_samples, len(predict_dataset))
 
-        stat_collector.add_text_field(trainer.metrics_format(metrics))
+        stat_collector.add_text_field("Predict Metrics", trainer.metrics_format(metrics))
         trainer.log_metrics("predict", metrics)
         trainer.save_metrics("predict", metrics)
 
@@ -546,10 +547,13 @@ def main():
             )
             predictions = [pred.strip() for pred in predictions]
             output_prediction_file = pathlib.Path(stat_collector.report_dir) / "generated_predictions.txt"
-            output_prediction_file.write_text("\n".join(predictions), encoding="utf-8")
-            example_predictions = (
-                f"```python\n {predict_dataset['function'][0]}\n```\ndocstring:\n```python\n {predictions[0]}\n```\n"
-            )
+            output_prediction_file.write_text("\n##################\n".join(predictions), encoding="utf-8")
+            example_predictions = "5 Functions with generated docstrings: \n"
+            for index in range(5):
+                example_predictions += (
+                    f"Prediction \n```python\n {predict_dataset['function'][index]}\n```\nDocstring:\n```python\n"
+                    f" {predictions[index]}\n```\n"
+                )
             stat_collector.add_text_field("Example predictions", example_predictions)
 
     stat_collector.create_summary()
