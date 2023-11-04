@@ -18,7 +18,7 @@ import evaluate
 import numpy as np
 import transformers
 from datasets import load_dataset
-from trainer_stat_collector import TrainerStatCollector
+from trainer_stat_collector import TrainerStatCollector, dict_2_md_json, format_example_prediction
 from transformers import (
     AutoConfig,
     AutoModelForSeq2SeqLM,
@@ -493,7 +493,7 @@ def main():
         )
         metrics["train_samples"] = min(max_train_samples, len(train_dataset))
 
-        stat_collector.add_text_field("Train metrics", trainer.metrics_format(metrics))
+        stat_collector.add_text_field("Train metrics", dict_2_md_json(trainer.metrics_format(metrics)))
 
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
@@ -514,7 +514,7 @@ def main():
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
-        stat_collector.add_text_field("Evaluate metrics", trainer.metrics_format(metrics))
+        stat_collector.add_text_field("Evaluate metrics", dict_2_md_json(trainer.metrics_format(metrics)))
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
 
@@ -533,7 +533,7 @@ def main():
         )
         metrics["predict_samples"] = min(max_predict_samples, len(predict_dataset))
 
-        stat_collector.add_text_field("Predict Metrics", trainer.metrics_format(metrics))
+        stat_collector.add_text_field("Predict Metrics", dict_2_md_json(trainer.metrics_format(metrics)))
         trainer.log_metrics("predict", metrics)
         trainer.save_metrics("predict", metrics)
 
@@ -550,10 +550,10 @@ def main():
             output_prediction_file.write_text("\n##################\n".join(predictions), encoding="utf-8")
             example_predictions = "5 Functions with generated docstrings: \n"
             for index in range(5):
-                example_predictions += (
-                    f"Prediction \n```python\n {predict_dataset['function'][index]}\n```\nDocstring:\n```python\n"
-                    f" {predictions[index]}\n```\n"
+                example_predictions += format_example_prediction(
+                    function=predict_dataset["function"][index], docstring=predictions[index]
                 )
+
             stat_collector.add_text_field("Example predictions", example_predictions)
 
     stat_collector.create_summary()

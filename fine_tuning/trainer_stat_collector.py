@@ -6,7 +6,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 import git
-import matplotlib as plt
+import matplotlib.pyplot as plt
 import pandas as pd
 from transformers.trainer_callback import TrainerCallback, TrainerControl, TrainerState
 from transformers.training_args import TrainingArguments
@@ -15,6 +15,14 @@ from transformers.training_args import TrainingArguments
 def get_commit_hash() -> str:
     repo = git.Repo(search_parent_directories=True)
     return repo.head.object.hexsha
+
+
+def dict_2_md_json(input: dict) -> str:
+    return f"```json\n{json.dumps(input, indent=2)}\n```\n"
+
+
+def format_example_prediction(function, docstring):
+    return f"### Prediction\n```python\n {function}\n```\nDocstring:\n```python\n {docstring}\n```\n"
 
 
 class StatCollectorException(Exception):
@@ -57,10 +65,6 @@ class TrainerStatCollector(TrainerCallback):
             self.train_metrics = pd.concat(
                 [self.train_metrics, pd.DataFrame(logs, index=[len(self.train_metrics)])], ignore_index=True
             )
-
-        # print("---------------- on log")
-        # print(f"kwargs keys: {kwargs.keys()}")
-        # print(f"logs keys: {kwargs['logs'].keys()}")
 
     def get_text_field(self, key) -> str:
         return self.text_fields.get(key, None)
