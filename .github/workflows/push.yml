@@ -21,7 +21,7 @@ jobs:
       - name: Run pylint
         continue-on-error: true
         run: |
-          pylint --output-format=parseable *.py > LintReport.txt
+          pylint --output-format=parseable ./** > LintReport.txt
       - name: Upload LintReport.txt
         uses: actions/upload-artifact@v3
         with:
