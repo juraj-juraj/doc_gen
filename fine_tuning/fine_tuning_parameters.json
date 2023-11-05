@@ -2,6 +2,7 @@
     "model_name_or_path": "t5-small",
     "do_train": true,
     "do_eval": true,
+    "do_predict": true,
     "source_prefix": "Generate docstring to python function: ",
     "dataset_name": "juraj-juraj/doc_gen",
     "output_dir": "./t5_upgrade",
