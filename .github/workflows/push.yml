@@ -17,13 +17,11 @@ jobs:
       - uses: actions/checkout@v3
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install poetry
-          poetry install --only dev
+          pip install pylint
       - name: Run pylint
         continue-on-error: true
         run: |
-          poetry run pylint --output-format=parseable *.py > LintReport.txt
+          pylint --output-format=parseable *.py > LintReport.txt
       - name: Upload LintReport.txt
         uses: actions/upload-artifact@v3
         with:
