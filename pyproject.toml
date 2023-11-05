@@ -49,4 +49,5 @@ disable = [
     "C0115", # Missing class docstring (missing-class-docstring)
     "C0116", # Missing function or method docstring (missing-function-docstring)
     "R0903", # Too few public methods (1/2) (too-few-public-methods)
+    "W1203", # logging-fstring-interpolation
 ]

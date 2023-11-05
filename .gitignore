@@ -2,3 +2,4 @@
 *.tmp
 poetry.lock
 __pycache__
+data/**
