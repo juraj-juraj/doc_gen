@@ -5,10 +5,10 @@
 # It has been changed to be usable with training coding llm
 
 import argparse
+import json
 import logging
 import os
 import pathlib
-import json
 import sys
 from dataclasses import dataclass, field
 from typing import Optional
@@ -18,7 +18,13 @@ import evaluate
 import numpy as np
 import transformers
 from datasets import load_dataset
-from trainer_stat_collector import TrainerStatCollector, dict_2_md_json, format_example_prediction
+from fine_tuning_utils import postprocess_text
+from trainer_stat_collector import (
+    StatCollectorI,
+    TrainerStatCollector,
+    dict_2_md_json,
+    format_example_prediction,
+)
 from transformers import (
     AutoConfig,
     AutoModelForSeq2SeqLM,
@@ -36,8 +42,6 @@ from transformers import (
     set_seed,
 )
 from transformers.trainer_utils import get_last_checkpoint
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -227,33 +231,43 @@ def main():
     json_configuration = pathlib.Path(args.configuration).read_text(encoding="utf-8")
     json_configuration = json.loads(json_configuration)
     stat_collector = TrainerStatCollector(train_paramers=json_configuration)
+    log_level = training_args.get_process_log_level()
 
     # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
+        level=log_level
     )
-    logger.addHandler(logging.FileHandler(filename=f"{stat_collector.init_report_directory()}/training.log"))
+    
+    # logging = logging.getLogger(__name__)
+
+    # logging.addHandler(logging.FileHandler(filename=f"{stat_collector.init_report_directory()}/training.log"))
+    logging.getLogger().addHandler(logging.FileHandler(filename=f"{stat_collector.init_report_directory()}/training.log"))
 
     if training_args.should_log:
         # The default of training_args.log_level is passive, so we set log level at info here to have that default.
         transformers.utils.logging.set_verbosity_info()
 
-    log_level = training_args.get_process_log_level()
-    logger.setLevel(log_level)
+    #logging.setLevel(log_level)
     datasets.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
+    transformers.utils.logging.get_logger().addHandler(logging.FileHandler(filename=f"{stat_collector.report_dir}/training.log"))
 
     # Log on each process the small summary:
-    logger.warning(
+    logging.warning(
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f"distributed training: {training_args.parallel_mode.value == 'distributed'}, 16-bits training:"
         f" {training_args.fp16}"
     )
-    logger.info(f"Training/evaluation parameters {training_args}")
+    logging.info(f"Training/evaluation parameters {training_args}")
+    
+    if not any([training_args.do_train, training_args.do_eval, training_args.do_predict]):
+        logging.info("There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
+        return
 
     # Detecting last checkpoint.
     last_checkpoint = None
@@ -265,7 +279,7 @@ def main():
                 "Use --overwrite_output_dir to overcome."
             )
         elif last_checkpoint is not None and training_args.resume_from_checkpoint is None:
-            logger.info(
+            logging.info(
                 f"Checkpoint detected, resuming training at {last_checkpoint}. To avoid this behavior, change "
                 "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
             )
@@ -281,11 +295,6 @@ def main():
         token=model_args.token,
     )
 
-    # Load pretrained model and tokenizer
-    #
-    # Distributed training:
-    # The .from_pretrained methods guarantee that only one local process can concurrently
-    # download model & vocab.
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -316,24 +325,18 @@ def main():
     if len(tokenizer) > embedding_size:
         model.resize_token_embeddings(len(tokenizer))
 
-    logger.info(f"Model.decoder.start token: {model.config.decoder_start_token_id}")
+    logging.info(f"Model.decoder.start token: {model.config.decoder_start_token_id}")
     if model.config.decoder_start_token_id is None:
         raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
 
-    prefix = (
-        data_args.source_prefix if data_args.source_prefix is not None else ""
-    )  # prefix should be something like: "Generate docstring for this python code: "
-
-    if not any([training_args.do_train, training_args.do_eval, training_args.do_predict]):
-        logger.info("There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
-        return
+    prefix = data_args.source_prefix or ""
 
     # Temporarily set max_target_length for training.
     max_target_length = data_args.max_target_length
     padding = "max_length" if data_args.pad_to_max_length else False
 
     if training_args.label_smoothing_factor > 0 and not hasattr(model, "prepare_decoder_input_ids_from_labels"):
-        logger.warning(
+        logging.warning(
             "label_smoothing is enabled but the `prepare_decoder_input_ids_from_labels` method is not defined for "
             f"`{model.__class__.__name__}`. This will lead to loss being calculated twice and will take up more memory"
         )
@@ -388,7 +391,6 @@ def main():
             )
 
     if training_args.do_eval:
-        max_target_length = data_args.val_max_target_length
         if "validation" not in raw_datasets:
             raise ValueError("--do_eval requires a validation dataset")
         eval_dataset = raw_datasets["validation"]
@@ -406,7 +408,6 @@ def main():
             )
 
     if training_args.do_predict:
-        max_target_length = data_args.val_max_target_length
         if "test" not in raw_datasets:
             raise ValueError("--do_predict requires a test dataset")
         predict_dataset = raw_datasets["test"]
@@ -437,12 +438,6 @@ def main():
 
     # Metric
     metric = evaluate.load("sacrebleu")
-
-    def postprocess_text(preds, labels):
-        preds = [pred.strip() for pred in preds]
-        labels = [[label.strip()] for label in labels]
-
-        return preds, labels
 
     def compute_metrics(eval_preds):
         preds, labels = eval_preds
@@ -508,7 +503,7 @@ def main():
     )
     num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
     if training_args.do_eval:
-        logger.info("*** Evaluate ***")
+        logging.info("*** Evaluate ***")
 
         metrics = trainer.evaluate(max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
@@ -519,7 +514,7 @@ def main():
         trainer.save_metrics("eval", metrics)
 
     if training_args.do_predict:
-        logger.info("*** Predict ***")
+        logging.info("*** Predict ***")
 
         predict_results = trainer.predict(
             predict_dataset,

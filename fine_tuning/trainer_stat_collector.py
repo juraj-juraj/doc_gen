@@ -4,6 +4,7 @@ import pathlib
 import time
 from collections import Counter
 from dataclasses import dataclass, field
+from typing import Protocol
 
 import git
 import matplotlib.pyplot as plt
@@ -29,6 +30,18 @@ class StatCollectorException(Exception):
     """Custom exception which is raised in case of error in trainer stat collector"""
 
     ...
+
+
+class StatCollectorI(Protocol):
+    def init_report_directory(self): ...
+
+    def on_evaluate(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs): ...
+
+    def get_text_field(self, key) -> str: ...
+
+    def add_text_field(self, heading: str, body: str): ...
+
+    def create_summary(self): ...
 
 
 @dataclass
@@ -66,15 +79,15 @@ class TrainerStatCollector(TrainerCallback):
                 [self.train_metrics, pd.DataFrame(logs, index=[len(self.train_metrics)])], ignore_index=True
             )
 
-    def get_text_field(self, key) -> str:
+    def get_text_field(self, key: str) -> str:
         return self.text_fields.get(key, None)
 
-    def add_text_field(self, heading, body):
+    def add_text_field(self, heading: str, body: str):
         self.text_fields[heading] = body
 
     def _create_loss_graph(self):
         if self.report_dir == None:
-            raise StatCollectorException("To create grap setup report directory beforehands")
+            raise StatCollectorException("To create graph setup report directory beforehand")
 
         fig, ax = plt.subplots()
         ax.plot(self.train_metrics["epoch"], self.train_metrics["loss"])
