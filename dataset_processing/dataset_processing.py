@@ -30,9 +30,7 @@ def parse_arguments() -> dict:
         default=None,
         help="File to save processed dateset",
     )
-    parser.add_argument(
-        "--repository", type=str, default=None, help="Repository to push dataset to"
-    )
+    parser.add_argument("--repository", type=str, default=None, help="Repository to push dataset to")
     return parser.parse_args()
 
 
@@ -47,6 +45,12 @@ def remove_docstring(function_string: str) -> str:
     return re.sub(r'("""|\'\'\')(.*?)(\1)', "", function_string, flags=re.DOTALL)
 
 
+def filter_lengths(dataset: pd.DataFrame, lower_bound: int = 50, high_bound: int = 500):
+    longer_than_lower = dataset["docstring"].str.len() > lower_bound
+    shorter_than_higher = dataset["docstring"].str.len() < high_bound
+    return dataset[longer_than_lower & shorter_than_higher]
+
+
 def main(arguments: dict):
     bar = tqdm(range(6))
     raw_data = pd.read_pickle(arguments.file)
@@ -58,9 +62,10 @@ def main(arguments: dict):
     df["function"] = df["function"].apply(remove_docstring)
     df = df[df["docstring"].str.len() > 0]
     bar.update(1)
-    ds_test = Dataset.from_pandas(df.loc[0:1000])
-    ds_validation = Dataset.from_pandas(df.loc[1000:2000])
-    ds_train = Dataset.from_pandas(df.loc[2000:])
+    df = filter_lengths(df)
+    ds_test = Dataset.from_pandas(df.iloc[0:1000])
+    ds_validation = Dataset.from_pandas(df.iloc[1000:2000])
+    ds_train = Dataset.from_pandas(df.iloc[2000:])
     bar.update(1)
     dataset_dict = DatasetDict(
         {
