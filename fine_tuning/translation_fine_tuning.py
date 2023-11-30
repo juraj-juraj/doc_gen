@@ -238,24 +238,28 @@ def main():
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
-        level=log_level
+        level=log_level,
     )
-    
+
     # logging = logging.getLogger(__name__)
 
     # logging.addHandler(logging.FileHandler(filename=f"{stat_collector.init_report_directory()}/training.log"))
-    logging.getLogger().addHandler(logging.FileHandler(filename=f"{stat_collector.init_report_directory()}/training.log"))
+    logging.getLogger().addHandler(
+        logging.FileHandler(filename=f"{stat_collector.init_report_directory()}/training.log")
+    )
 
     if training_args.should_log:
         # The default of training_args.log_level is passive, so we set log level at info here to have that default.
         transformers.utils.logging.set_verbosity_info()
 
-    #logging.setLevel(log_level)
+    # logging.setLevel(log_level)
     datasets.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
-    transformers.utils.logging.get_logger().addHandler(logging.FileHandler(filename=f"{stat_collector.report_dir}/training.log"))
+    transformers.utils.logging.get_logger().addHandler(
+        logging.FileHandler(filename=f"{stat_collector.report_dir}/training.log")
+    )
 
     # Log on each process the small summary:
     logging.warning(
@@ -264,7 +268,7 @@ def main():
         f" {training_args.fp16}"
     )
     logging.info(f"Training/evaluation parameters {training_args}")
-    
+
     if not any([training_args.do_train, training_args.do_eval, training_args.do_predict]):
         logging.info("There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
         return
