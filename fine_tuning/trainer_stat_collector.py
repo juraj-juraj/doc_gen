@@ -54,6 +54,7 @@ class TrainerStatCollector(TrainerCallback):
         default_factory=lambda: pd.DataFrame(columns=["loss", "learning_rate", "epoch"], dtype=float)
     )
     report_dir: str = field(default=None)
+    experiment_description: str = field(default=None)
 
     def init_report_directory(self) -> str:
         self.report_dir = time.strftime("report-%y_%m_%d-%H_%M_%S", self.start_time)
@@ -102,6 +103,7 @@ class TrainerStatCollector(TrainerCallback):
         report = (
             f"# {time.strftime('%x %X', self.start_time)} Report {self.train_paramers['model_name_or_path']}\n"
             f"Git commit: {self.commit_hash}\n"
+            f"{self.experiment_description}\n"
             "## Train parameters \n"
             "```json\n"
             f"{json.dumps(self.train_paramers, indent=2)}"

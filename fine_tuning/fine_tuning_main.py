@@ -1,17 +1,26 @@
-import logging
 import argparse
+import json
+import logging
 import os
 import pathlib
 import sys
-import json
 
-import transformers
 import datasets
-from transformers import HfArgumentParser, Seq2SeqTrainingArguments, AutoConfig, AutoTokenizer, AutoModelForSeq2SeqLM
-
-from model_args import ModelArguments, DataTrainingArguments
-from trainer_container import TrainerContainer, TrainerContainerException, sacrebleu_metrics
-from trainer_stat_collector import TrainerStatCollector, StatCollectorException
+import transformers
+from model_args import DataTrainingArguments, ModelArguments
+from trainer_container import (
+    TrainerContainer,
+    TrainerContainerException,
+    sacrebleu_metrics,
+)
+from trainer_stat_collector import StatCollectorException, TrainerStatCollector
+from transformers import (
+    AutoConfig,
+    AutoModelForSeq2SeqLM,
+    AutoTokenizer,
+    HfArgumentParser,
+    Seq2SeqTrainingArguments,
+)
 
 
 def setup_logging(log_level: int, report_dir: pathlib.Path, should_log: bool) -> None:
@@ -55,7 +64,9 @@ def main():
 
     json_configuration = pathlib.Path(args.configuration).read_text(encoding="utf-8")
     json_configuration = json.loads(json_configuration)
-    stat_collector = TrainerStatCollector(train_paramers=json_configuration)
+    stat_collector = TrainerStatCollector(
+        train_paramers=json_configuration, experiment_description="Using tokenizer from codet5p small"
+    )
     log_level = training_args.get_process_log_level()
     report_dir = pathlib.Path(stat_collector.init_report_directory())
 
