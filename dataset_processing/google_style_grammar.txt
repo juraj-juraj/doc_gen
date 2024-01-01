@@ -1,0 +1,19 @@
+start: LINE+ parameters "\n"*
+
+parameters: args_sec "\n"* [returns_sec "\n"*] [raises_sec]
+
+return_params: returns_sec [raises_sec] 
+
+raises_sec.1: "Raises:"i "\n"+ ARG_PAIR+
+returns_sec: "Returns:"i "\n"+ LINE+
+args_sec: "Args:"i "\n"+ ARG_PAIR+
+
+ARG_PAIR: WORD ":" /./+ ["\n"]
+LINE: /./*"\n"
+
+
+// imports WORD from library
+%import common.WORD   
+
+// Disregard spaces in text
+%ignore " " 

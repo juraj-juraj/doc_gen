@@ -1,0 +1,15 @@
+start: LINE+ "\n"* parameters "\n"*
+
+parameters.1: section+
+
+section.1: WORD "\n" "-"+ "\n"+ SENTENCE+ ["\n"]
+SENTENCE: /./+ ["\n"]
+LINE: /(.[^-])+/"\n"
+
+
+// imports WORD from library
+%import common.WORD   
+
+// Disregard spaces in text
+%ignore " "
+%ignore "\t"
