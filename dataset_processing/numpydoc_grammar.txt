@@ -1,0 +1,18 @@
+start: LINE+ NEWLINE* parameters NEWLINE*
+
+parameters.1: section+
+
+section.1: DWORD NEWLINE "-"+ NEWLINE+ SENTENCE+ [NEWLINE]
+SENTENCE: /./+ [NEWLINE]
+LINE: /./+ NEWLINE
+
+DIGITLETTER: LETTER|DIGIT
+DWORD: DIGITLETTER+
+
+%import common.LETTER
+%import common.NEWLINE
+%import common.DIGIT
+%import common.WS
+
+// Disregard spaces in text
+%ignore WS
