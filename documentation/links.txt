@@ -1,0 +1,42 @@
+opennmnt conversion to ctranslate format. Convert HF models to ctranslate, and api documentation.
+https://opennmt.net/CTranslate2/guides/transformers.html
+
+google style docstrings specification:
+https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings
+https://github.com/google/styleguide
+
+Python tool to convert docstrings and create atifical docstrings:
+https://github.com/dadadel/pyment
+
+Stackoverflow what are the most common python docstrings format. Explains the few docstring styles and their pros and cons.
+https://stackoverflow.com/questions/3898572/what-are-the-most-common-python-docstring-formats
+
+Pep 257 docstring conventions:
+https://peps.python.org/pep-0257/#abstract
+
+multihead attention explained in great detail:
+https://data-science-blog.com/blog/2021/04/07/multi-head-attention-mechanism/
+
+T5 finetuning tips:
+https://discuss.huggingface.co/t/t5-finetuning-tips/684
+
+
+linear regression four ways. May not be very connected with bechelor thesis, but it is a good read.
+https://github.com/peterroelants/peterroelants.github.io/blob/main/notebooks/misc/linear-regression-four-ways.ipynb
+Another logistic regression example:
+https://www.sciencedirect.com/topics/computer-science/logistic-regression#:~:text=Logistic%20regression%20is%20a%20process,%2Fno%2C%20and%20so%20on.
+
+
+Transformers demystified, video about transformers and pretraining bert , gpt
+https://www.sciencedirect.com/topics/computer-science/logistic-regression#:~:text=Logistic%20regression%20is%20a%20process,%2Fno%2C%20and%20so%20on.
+
+fine tuning gpt2:
+https://www.youtube.com/watch?v=nsdCRVuprDY
+https://212digital.medium.com/fine-tuning-the-gpt-2-large-language-model-unlocking-its-full-potential-66e3a082ab9c
+
+
+python for microscopists, too much python codes for inspiration about anything:
+https://github.com/bnsreenu/python_for_microscopists/blob/master/311_fine_tuning_GPT2.ipynb
+
+huggingface python examples:
+https://github.com/huggingface/transformers/blob/main/examples/pytorch/translation/requirements.txt
