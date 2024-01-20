@@ -1,15 +1,18 @@
-start: LINE+ "\n"* parameters "\n"*
+start: LINE+ NEWLINE* parameters NEWLINE*
 
 parameters.1: section+
 
-section.1: WORD "\n" "-"+ "\n"+ SENTENCE+ ["\n"]
-SENTENCE: /./+ ["\n"]
-LINE: /(.[^-])+/"\n"
+section.1: DWORD NEWLINE "-"+ NEWLINE+ SENTENCE+ [NEWLINE]
+SENTENCE: /./+ [NEWLINE]
+LINE: /./+ NEWLINE
 
+DIGITLETTER: LETTER|DIGIT
+DWORD: DIGITLETTER+
 
-// imports WORD from library
-%import common.WORD   
+%import common.LETTER
+%import common.NEWLINE
+%import common.DIGIT
+%import common.WS
 
 // Disregard spaces in text
-%ignore " "
-%ignore "\t"
+%ignore WS
