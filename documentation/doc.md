@@ -45,7 +45,7 @@ Google defines its style of docstrings. It is described in the [Google Python St
 ### Numpydoc style
 
 Convention for the Numpydoc style is defined in the official [Numpydoc documentation](https://numpydoc.readthedocs.io/en/latest/format.html). This convention is used by libraries like Numpy, SciPy, scikit-learn, etc.
-This convention uses [reStructuredText](http://docutils.sourceforge.net/rst.html) syntax and is rendered using [Sphinx](https://www.sphinx-doc.org/).
+This convention is inspired by [reStructuredText](http://docutils.sourceforge.net/rst.html) syntax.
 
 Numpydoc style consists mainly of the following sections:
 
@@ -118,6 +118,20 @@ Custom fields can be defined by the user if needed. This makes this documentatio
     @return:  Description of return value.
     """
 ```
+
+### reST style
+
+ReStructuredText aims to be an easy-to-use markup syntax and parser system. This markup language is meant to be used not only for code documentation in Python but also for quickly creating simple web pages and standalone documents. The formal definition and motivation behind this language is available in [reST documentation](https://docutils.sourceforge.io/rst.html).
+[PEP 287](https://peps.python.org/pep-0287/) defines a convention for documenting Python code using reStructuredText.
+
+The structure of docstring in reST style is defined as so:
+
+* `paragraph`: is a pattern consisting of chunks of text. Paragraphs are separated by blank lines.
+* 
+
+
+
+[PEP 287](https://peps.python.org/pep-0287/) defines a convention for documenting Python code using reStructuredText. This documentation style aims to define a markup syntax that is readable and simple, yet powerful enough for non-trivial use. This style gives freedom to the programmer to define the structure of the documentation. It is not as strict as other styles.
 
 # Processing dataset
 
