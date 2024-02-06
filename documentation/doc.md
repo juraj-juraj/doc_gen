@@ -2,7 +2,17 @@
 
 ## Introduction
 
-This thesis aims to create a tool, that would create docstring documentation for Python code.
+This thesis aims to train and evaluate models, that would generate docstring documentation for Python code.
+
+## Quick dive into large Language models
+
+### Beginning of neural-based language models
+
+In 2003 paper [`A Neural Probabilistic Language Model`](https://www.jmlr.org/papers/volume3/bengio03a/bengio03a.pdf) presented readers with the possibility of using neural networks to predict the next word. Until then n-gram models were considered as state-of-the-art. Where n-gram models construct tables of conditional probabilities for the next word, for each one of a large number of contexts, meaning combinations of the last n-1 words. Probabilities of combinations are learned from datasets, which degrades predictions only unseen data. Also, the context sizes of these models were rather small, typically 3 words at that time. Due to the explosion of the number of parameters with increasing context size.
+
+The authors proposed a neural network model, which is able to learn the probability distribution of the next word given the previous words. To achieve that authors introduced `word feature vector`, which is learned so that semantically similar words are closer together in Euclidean space. The `word feature vectors` are used to calculate the probability of the next word given the previous ones. The probability function and `word feature vectors` are learned simultaneously.
+
+This approach showed significantly better performance of neural network models compared to n-gram models. The neural network model was able to take advantage of more context. 
 
 ## Docstrings
 
@@ -31,7 +41,7 @@ Google defines its style of docstrings. It is described in the [Google Python St
     Usually on multiple lines.
 
     Args:
-        first: First parameter description.
+        first (type): First parameter description.
         second: Second parameter description.
 
     Returns:
