@@ -3,6 +3,7 @@ from ast import AST, AsyncFunctionDef, ClassDef, Constant, Expr, FunctionDef, Mo
 from typing import Callable
 
 import black
+from model_loader import ModelI
 
 
 def get_node_offset(node: ast.stmt) -> int:
@@ -40,18 +41,19 @@ def set_docstring(node: ast.stmt, docstring: str, overwrite=False):
 
 
 class DocstringAdder(ast.NodeTransformer):
-    def __init__(self, docstring_generator: Callable[[ast.stmt], str], overwrite: bool, *args, **kwargs):
+    def __init__(self, docstring_generator: ModelI, overwrite: bool, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.docstring_generator = docstring_generator
         self.overwrite_docstrings = overwrite
 
     def visit_FunctionDef(self, node) -> AST:
-        docstring = self.docstring_generator(node)
+        fce_code = ast.unparse(node)
+        docstring = self.docstring_generator.generate(fce_code)
         set_docstring(node, docstring, self.overwrite_docstrings)
         return self.generic_visit(node)
 
 
-def annotate_code(code: str, docstring_generator: Callable[[ast.stmt], str], overwrite_docstrings: bool = False) -> str:
+def annotate_code(code: str, docstring_generator: ModelI, overwrite_docstrings: bool = False) -> str:
     tree = ast.parse(code)
     new_tree = DocstringAdder(docstring_generator, overwrite_docstrings).visit(tree)
     ast.fix_missing_locations(new_tree)
