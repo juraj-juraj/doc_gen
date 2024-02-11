@@ -33,7 +33,7 @@ def main():
     logging.basicConfig(level=logging.getLevelName(args.log_level.upper()))
 
     model_cls = load_model(args.model)
-    model = model_cls(args.device)
+    model = model_cls(device=args.device)
     raw_code = args.filename.read_text(encoding="utf-8")
 
     generated_code = annotate_code(raw_code, model, args.overwrite_docstrings)
