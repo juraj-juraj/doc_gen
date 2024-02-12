@@ -19,7 +19,7 @@ def parse_arguments() -> Dict:
         "-l",
         "--log_level",
         type=str,
-        default="info",
+        default="error",
         choices=["info", "debug", "warning", "error", "critical"],
         help="log level",
     )

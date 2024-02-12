@@ -1,5 +1,5 @@
 {
-    "model_dir": "constant_docstring_generator.tmp/",
+    "model_dir": "gpt_online_generator.tmp/",
     "device": "cuda",
-    "log_level": "debug"
+    "log_level": "info"
 }
