@@ -1,0 +1,5 @@
+{
+    "model_dir": "gpt_online_generator.tmp/",
+    "device": "cuda",
+    "log_level": "info"
+}
