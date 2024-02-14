@@ -104,7 +104,7 @@ worker_thread.start()
 
 
 @app.post("/annotate_task/")
-async def create_annotate_task(request: AnnotateRequest):
+async def create_annotate_task(request: AnnotateRequest) -> HTTPException | dict[str, uuid.UUID]:
     logging.debug("Got request to annotate code")
     global task_queue
     if task_queue.full():
@@ -119,7 +119,7 @@ async def create_annotate_task(request: AnnotateRequest):
 
 
 @app.get("/task_status/{task_id}")
-async def get_task_status(task_id: uuid.UUID):
+async def get_task_status(task_id: uuid.UUID) -> dict[str, TaskProgress] | HTTPException:
     logging.debug(f"Checking task task status: {task_id}")
     with task_buffer_lock:
         if task_id in task_buffer:
@@ -129,7 +129,7 @@ async def get_task_status(task_id: uuid.UUID):
 
 
 @app.get("/task_result/{task_id}")
-async def get_task_result(task_id: uuid.UUID):
+async def get_task_result(task_id: uuid.UUID) -> TaskStatus | HTTPException:
     logging.debug(f"Checking task task result: {task_id}")
     with task_buffer_lock:
         if task_id in task_buffer:
