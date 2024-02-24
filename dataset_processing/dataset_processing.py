@@ -79,6 +79,12 @@ def filter_by_grammar(dataset: pd.DataFrame, grammar_file: pathlib.Path) -> pd.D
     return dataset.iloc[[grammar_filter(docstring) for docstring in dataset.docstring]]
 
 
+def filter_by_grammar_neg(dataset: pd.DataFrame, grammar_file: pathlib.Path) -> pd.DataFrame:
+    grammar = grammar_file.read_text(encoding="utf-8")
+    grammar_filter = GrammarFilter(grammar)
+    return dataset.iloc[[not grammar_filter(docstring) for docstring in dataset.docstring]]
+
+
 def main(arguments: dict):
     setup_logging(arguments.log_level)
     bar = tqdm(range(6))
@@ -119,6 +125,35 @@ def main(arguments: dict):
     bar.update(1)
 
 
+def get_bad_annotated_functions(arguments: dict):
+    setup_logging(arguments.log_level)
+    bar = tqdm(range(5))
+    logging.debug("Reading dataset")
+    raw_data = pd.read_pickle(arguments.file)
+    bar.update(1)
+    df = pd.DataFrame(raw_data)
+    bar.update(1)
+    df = df[["docstring", "function"]].copy()
+
+    logging.debug("Removing docstrings")
+    df["function"] = df["function"].apply(remove_docstring)
+    df = df[df["docstring"].str.len() > 0]
+    bar.update(1)
+    df = filter_lengths(df, lower_bound=100)
+    if arguments.grammar:
+        logging.debug("Filtering by grammar negation")
+        df = filter_by_grammar_neg(df, arguments.grammar)
+    logging.info(f"Entries of dataset: {len(df)}")
+
+    bar.update(1)
+    df.reset_index(inplace=True)
+    if arguments.output_file:
+        logging.info("Saving to disk")
+        df["function"].to_pickle(arguments.output_file)
+    bar.update(1)
+
+
 if __name__ == "__main__":
     arguments = parse_arguments()
     main(arguments)
+    # get_bad_annotated_functions(arguments)
