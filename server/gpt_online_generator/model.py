@@ -7,14 +7,13 @@ import openai
 class Model:
     def __init__(self, *args, **kwargs) -> None:
         _api_key = os.getenv("OPENAI_API_KEY")
-        logging.debug(f"Initializing gpt client")
+        logging.debug("Initializing gpt client")
         self.gpt_client = openai.OpenAI(api_key=_api_key)
 
     def generate(self, code: str) -> str:
-        logging.debug(f"Generating docstring for code")
+        logging.debug("Generating docstring for code")
         completion = self.gpt_client.chat.completions.create(
             model="gpt-3.5-turbo-0125",
-            # response_format={"type": "json_object"},
             messages=[
                 {
                     "role": "system",
