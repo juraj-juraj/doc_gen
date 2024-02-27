@@ -36,6 +36,7 @@ def main():
     logging.info("Waiting for task to finish")
     while True:
         response = json.loads(httpx.get(f"{args.host}/task_status/{task_id}").text)
+        logging.info(f"Task status: {response['status']}")
         if response["status"] == "completed":
             break
         time.sleep(1)
