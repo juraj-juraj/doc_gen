@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import pathlib
 import queue
@@ -29,20 +30,6 @@ class AnnotateRequest(BaseModel):
     overwrite_docstrings: bool = False
 
 
-class ValueEvent(threading.Event):
-    def __init__(self) -> None:
-        super().__init__()
-        self._value = None
-
-    @property
-    def value(self):
-        return self._value
-
-    @value.setter
-    def value(self, value: Any):
-        self._value = value
-
-
 class AnnotateWorker(threading.Thread):
     def __init__(
         self,
@@ -58,26 +45,16 @@ class AnnotateWorker(threading.Thread):
 
     def run(self):
         while True:
-            task, event_on_done = self.task_queue.get()
+            task, future_result = self.task_queue.get()
             logging.info(f"Worker: {self.name} annotating task")
             try:
-                for _ in range(20):
-                    completed_task = docstring_transformer.annotate_code(task, docstring_generator=self.model)
-                event_on_done.value = completed_task
+                completed_task = docstring_transformer.annotate_code(task, docstring_generator=self.model)
+                future_result.set_result(completed_task)
             except Exception as e:
                 logging.error(f"Worker {self.name} raised exception: {e}")
+                future_result.set_exception(e)
             finally:
-                event_on_done.set()
-
-
-class FutureResult:
-    def __init__(self, on_done_event: ValueEvent):
-        self._on_done_event = on_done_event
-
-    def result(self) -> typing.Any | None:
-        logging.debug("Waiting on task...")
-        self._on_done_event.wait()
-        return self._on_done_event.value
+                logging.info(f"Worker: {self.name} done annotating task")
 
 
 class WorkerPoolException(Exception): ...
@@ -100,13 +77,13 @@ class PersistentWorkerPool:
         ]
         [worker.start() for worker in self.workers]
 
-    def submit_task(self, task: any) -> FutureResult | None:
+    def submit_task(self, task: any) -> asyncio.Future | None:
         logging.info("Creating task to queue")
-        v_event = ValueEvent()
+        future_result = asyncio.Future()
         try:
-            self.task_queue.put_nowait((task, v_event))
-            logging.info(f"Actual queue size: {self.task_queue.qsize}")
-            return FutureResult(v_event)
+            self.task_queue.put_nowait((task, future_result))
+            logging.info(f"Actual queue size: {self.task_queue.qsize()}")
+            return future_result
         except queue.Full:
             logging.warning("Resource exhausted, try again later")
             raise WorkerPoolException("Resource exhausted, try again later")
@@ -142,12 +119,11 @@ async def annotate_code(request: AnnotateRequest) -> dict[str, str]:
     logging.info("Received request")
     try:
         task = worker_pool.submit_task(request.code)
-    except Exception as exception:
-        HTTPException(status_code=429, detail=exception)
 
-    result = task.result()
-    if result is None:
-        HTTPException(status_code=429, detail="Task could not be processed successfully")
+    except WorkerPoolException as exception:
+        raise HTTPException(status_code=429, detail=str(exception))
+
+    result = await asyncio.wrap_future(task)
     return {"result": result}
 
 
