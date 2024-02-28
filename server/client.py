@@ -32,10 +32,13 @@ def main():
     response = httpx.post(
         f"{args.host}/annotate_code/",
         json={"code": input_code, "overwrite_docstrings": False},
-        timeout=httpx.Timeout(timeout=30),
+        timeout=httpx.Timeout(timeout=300),
     )
-    result = json.loads(response.text)["result"]
+    if response.status_code != 200:
+        logging.error(f"Server returned error code {response.status_code} with message: {response.text}")
+        return
 
+    result = json.loads(response.text)["result"]
     args.output.write_text(result, encoding="utf-8")
 
 
