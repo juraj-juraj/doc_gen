@@ -47,7 +47,6 @@ class DocstringAdder(ast.NodeTransformer):
         self.overwrite_docstrings = overwrite
 
     def visit_FunctionDef(self, node: ast.stmt) -> AST:
-        logging.info(f"Visiting FunctionDef: {node.name}")
         fce_code = ast.unparse(node)
         docstring = self.docstring_generator.generate(fce_code)
         set_docstring(node, docstring, self.overwrite_docstrings)
