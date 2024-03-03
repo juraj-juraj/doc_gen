@@ -1,5 +1,7 @@
 {
-    "model_dir": "gpt_online_generator.tmp/",
-    "device": "cuda",
+    "model_dir": "ct2_codet5p_220m_docstring/",
+    "device": "cpu",
+    "workers": 1,
+    "queue_size": 1,
     "log_level": "info"
 }

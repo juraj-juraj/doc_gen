@@ -1,11 +1,11 @@
+import asyncio
 import logging
 import pathlib
 import queue
 import threading
-import uuid
+import typing
 from contextlib import asynccontextmanager
-from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
 import docstring_transformer
 import model_loader
@@ -14,16 +14,14 @@ from pydantic import BaseModel
 
 CONFIG_FILE = "server_config.json"
 MAX_QUEUE_LEN = 3
-
-docstring_model = None
-task_queue = queue.Queue(maxsize=MAX_QUEUE_LEN)
-task_buffer = {}
-task_buffer_lock = threading.Lock()
+worker_pool = None
 
 
 class AppConfig(BaseModel):
     model_dir: pathlib.Path
     device: Literal["cpu", "cuda"] = "cpu"
+    workers: int = 1
+    queue_size: int = 1
     log_level: Literal["info", "debug", "warning", "error", "critical"] = "warning"
 
 
@@ -32,21 +30,68 @@ class AnnotateRequest(BaseModel):
     overwrite_docstrings: bool = False
 
 
-class TaskProgress(Enum):
-    pending = "pending"
-    processing = "processing"
-    completed = "completed"
-    failed = "failed"
+class AnnotateWorker(threading.Thread):
+    def __init__(
+        self,
+        model_cls: typing.Type[model_loader.ModelI],
+        task_queue: queue.Queue,
+        device: Literal["cpu", "cuda"] = "cpu",
+        name: str | None = None,
+    ) -> None:
+        logging.info(f"Initiating worker {name}")
+        super().__init__(name=name, daemon=True)
+        self.model = model_cls(device=device)
+        self.task_queue = task_queue
+
+    def run(self):
+        while True:
+            task, future_result = self.task_queue.get()
+            logging.info(f"Worker: {self.name} annotating task")
+            try:
+                completed_task = docstring_transformer.annotate_code(task, docstring_generator=self.model)
+                future_result.set_result(completed_task)
+            except Exception as e:
+                logging.error(f"Worker {self.name} raised exception: {e}")
+                future_result.set_exception(e)
+            finally:
+                logging.info(f"Worker: {self.name} done annotating task")
 
 
-class TaskStatus(BaseModel):
-    status: TaskProgress
-    result: str | None
+class WorkerPoolException(Exception): ...
+
+
+class PersistentWorkerPool:
+    def __init__(
+        self,
+        worker_initializer_cls: typing.Type[model_loader.ModelI],
+        worker_args: dict | None = None,
+        no_workers: int | None = 1,
+        queue_size: int | None = 1,
+    ):
+        logging.info("Creating worker pool")
+
+        self.task_queue = queue.Queue(maxsize=queue_size)
+        self.workers = [
+            AnnotateWorker(worker_initializer_cls, self.task_queue, **worker_args | {"name": f"worker_{i}"})
+            for i in range(no_workers)
+        ]
+        [worker.start() for worker in self.workers]
+
+    def submit_task(self, task: any) -> asyncio.Future | None:
+        logging.info("Creating task to queue")
+        future_result = asyncio.Future()
+        try:
+            self.task_queue.put_nowait((task, future_result))
+            logging.info(f"Actual queue size: {self.task_queue.qsize()}")
+            return future_result
+        except queue.Full:
+            logging.warning("Resource exhausted, try again later")
+            raise WorkerPoolException("Resource exhausted, try again later")
 
 
 @asynccontextmanager
-async def load_model(app: FastAPI):
-    global docstring_model
+async def init_workers(app: FastAPI):
+    global worker_pool
     module_dir = pathlib.Path(__file__).parent
     json_configuration = (module_dir / CONFIG_FILE).read_text(encoding="utf-8")
     config = AppConfig.model_validate_json(json_configuration)
@@ -58,84 +103,30 @@ async def load_model(app: FastAPI):
 
     logging.info(f"Loaded configuration file: {config}")
     model_cls = model_loader.load_model(config.model_dir)
-    docstring_model = model_cls(device=config.device)
-
+    worker_pool = PersistentWorkerPool(model_cls, {"device": config.device}, config.workers, config.queue_size)
     try:
         yield
     finally:
-        docstring_model = None
+        worker_pool = None
 
 
-def annotate_task(request: AnnotateRequest, task_id: str):
-    global finished_tasks
-    global docstring_model
-    logging.debug(f"Annotating task: {task_id}")
+app = FastAPI(lifespan=init_workers)
+
+
+@app.post("/annotate_code/")
+async def annotate_code(request: AnnotateRequest) -> dict[str, str]:
+    global worker_pool
+    logging.info("Received request")
     try:
-        with task_buffer_lock:
-            task_buffer[task_id].status = TaskProgress.processing
+        task = worker_pool.submit_task(request.code)
 
-        annotated_code = docstring_transformer.annotate_code(
-            request.code, docstring_model, request.overwrite_docstrings
-        )
+    except WorkerPoolException as exception:
+        raise HTTPException(status_code=429, detail=str(exception))
 
-        with task_buffer_lock:
-            task_buffer[task_id] = TaskStatus(status=TaskProgress.completed, result=annotated_code)
-
-    except Exception as e:
-        logging.error(f"Failed to annotate task: {task_id}")
-        logging.error(e)
-        with task_buffer_lock:
-            task_buffer[task_id].status = TaskProgress.failed
+    result = await asyncio.wrap_future(task)
+    return {"result": result}
 
 
-def worker(queue: queue.Queue):
-    while True:
-        task, task_id = queue.get()
-        logging.debug(f"Processing task: {task_id}")
-        annotate_task(task, task_id)
-        logging.debug(f"Finished task: {task_id}")
-        task_queue.task_done()
-
-
-app = FastAPI(lifespan=load_model)
-worker_thread = threading.Thread(target=worker, args=(task_queue,))
-worker_thread.daemon = True  # Set the thread as a daemon so it exits when the main program exits
-worker_thread.start()
-
-
-@app.post("/annotate_task/")
-async def create_annotate_task(request: AnnotateRequest) -> HTTPException | dict[str, uuid.UUID]:
-    logging.debug("Got request to annotate code")
-    global task_queue
-    if task_queue.full():
-        return HTTPException(status_code=429, detail="Resource exhausted, try again later.")
-    task_id = uuid.uuid4()
-
-    with task_buffer_lock:
-        task_buffer[task_id] = TaskStatus(status=TaskProgress.pending, result="")
-    task_queue.put((request, task_id))
-
-    return {"task_id": task_id}
-
-
-@app.get("/task_status/{task_id}")
-async def get_task_status(task_id: uuid.UUID) -> dict[str, TaskProgress] | HTTPException:
-    logging.debug(f"Checking task task status: {task_id}")
-    with task_buffer_lock:
-        if task_id in task_buffer:
-            response = {"status": task_buffer[task_id].status}
-            return response
-    return HTTPException(status_code=404, detail="Task not found")
-
-
-@app.get("/task_result/{task_id}")
-async def get_task_result(task_id: uuid.UUID) -> TaskStatus | HTTPException:
-    logging.debug(f"Checking task task result: {task_id}")
-    with task_buffer_lock:
-        if task_id in task_buffer:
-            task = task_buffer[task_id]
-            if task.status == TaskProgress.completed:
-                del task_buffer[task_id]
-                return task
-            return HTTPException(status_code=412, detail=f"Task is: {task.status.value}")
-    return HTTPException(status_code=404, detail="Task not found")
+@app.get("/test_endpoint/")
+async def test_endpoint() -> dict[str, str]:
+    return {"status": "ok"}

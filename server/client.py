@@ -29,20 +29,17 @@ def main():
     input_code = args.filename.read_text(encoding="utf-8")
 
     logging.info(f"Sending code to {args.host} for annotation")
-    response = httpx.post(f"{args.host}/annotate_task/", json={"code": input_code, "overwrite_docstrings": False})
-    task_id = json.loads(response.text)["task_id"]
-    logging.info(f"Received task id: {task_id}")
+    response = httpx.post(
+        f"{args.host}/annotate_code/",
+        json={"code": input_code, "overwrite_docstrings": False},
+        timeout=httpx.Timeout(timeout=300),
+    )
+    if response.status_code != 200:
+        logging.error(f"Server returned error code {response.status_code} with message: {response.text}")
+        return
 
-    logging.info("Waiting for task to finish")
-    while True:
-        response = json.loads(httpx.get(f"{args.host}/task_status/{task_id}").text)
-        if response["status"] == "completed":
-            break
-        time.sleep(1)
-
-    response = json.loads(httpx.get(f"{args.host}/task_result/{task_id}").text)
-
-    args.output.write_text(response["result"], encoding="utf-8")
+    result = json.loads(response.text)["result"]
+    args.output.write_text(result, encoding="utf-8")
 
 
 if __name__ == "__main__":
