@@ -1,0 +1,16 @@
+{
+    "score_settings":
+    {
+        "compress_scores": "average"
+    },
+    "evaluators": [
+        {
+            "class": "LengthEvaluator",
+            "params": {
+                "length_penalty": 0.2,
+                "low_length_treshold": 0.9,
+                "upper_length_treshold": 1.1
+            }
+        }
+    ]
+}
