@@ -3,6 +3,7 @@ import json
 import logging
 import pathlib
 
+from corpus_processor import load_corpus
 from metrics import evaluator_builder
 
 
@@ -14,7 +15,7 @@ def parse_configuration(config_path: str) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="Script to quantitatively evaluate docstring generator")
     parser.add_argument("-H", "--host", type=str, help="Host serving api for docstring generation")
-    parser.add_argument("-d", "--corpora", type=str, help="Reference docstring generating problems")
+    parser.add_argument("-d", "--corpus", type=pathlib.Path, help="Reference docstring generating problems")
     parser.add_argument("-c", "--config", type=parse_configuration, help="Configuration of evaluator")
     parser.add_argument(
         "-l",
@@ -30,6 +31,7 @@ def main():
         logging.basicConfig(level=logging.getLevelName(args.log_level.upper()))
 
         evaluator = evaluator_builder(args.config)
+        corpus = load_corpus(args.corpus)
 
     except Exception as e:
         logging.error(f"Error occurred: {e}")

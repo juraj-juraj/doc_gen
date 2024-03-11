@@ -1,5 +1,4 @@
 import ast
-import logging
 from ast import AST, AsyncFunctionDef, ClassDef, Constant, Expr, FunctionDef, Module
 
 import black
