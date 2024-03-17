@@ -58,3 +58,7 @@ def annotate_code(code: str, docstring_generator: ModelI, overwrite_docstrings: 
     ast.fix_missing_locations(new_tree)
     generated_code = ast.unparse(new_tree)
     return black.format_str(generated_code, mode=black.Mode())
+
+
+def generate_docstring(code: str, docstring_generator: ModelI) -> str:
+    return docstring_generator.generate(code)
