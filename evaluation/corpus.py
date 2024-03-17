@@ -126,6 +126,19 @@ def ssl_wrap_socket(
 
     Returns:
         ssl.SSLSocket: Socket wrapping original socket from arguments
+
+
+
+    Creates socket from ssl_options and uses it to wrap submitted socket
+    May you want to add extra arguments to creating socket wrapper, you can using kwargs
+
+    Args:
+        socket (socket.socket): Original socket, which will be wrapped
+        ssl_options (Union[Dict[str, Any], ssl.SSLContext]): Options of wrapping socket
+        server_hostname (str, optional): Server hostname of new wrapper socket. Defaults to None.
+
+    Returns:
+        ssl.SSLSocket: Socket wrapping original socket from arguments
     """
     context = ssl_options_to_context(ssl_options)
     if ssl.HAS_SNI:
