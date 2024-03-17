@@ -8,6 +8,7 @@ import sys
 import time
 from typing import Literal, Protocol, TextIO
 
+import evaluate
 import numpy as np
 from pydantic import BaseModel, Field
 from typing_extensions import runtime_checkable
@@ -68,8 +69,8 @@ class EvaluateScore(BaseModel):
             f"{json.dumps(score_results, indent=m_indent)}\n"
             "```\n"
             "## Per metric score\n"
-            "```json"
-            f"{json.dumps(self.metric_results, indent=m_indent)}\n"
+            "```json\n"
+            f"{json.dumps(self.metric_results, indent=1)}\n"
             "```\n"
         )
         output.write(report)
@@ -92,7 +93,7 @@ class Evaluator(BaseModel):
     def evaluate(self, preds: list[str], refs: list[list[str]], samples: list[str] | None) -> EvaluateScore:
         score = self.evaluate_score_builder.build()
         for metric in self.metrics:
-            score.add_result(metric.get_name, metric.evaluate(preds, refs, samples))
+            score.add_result(metric.get_name(), metric.evaluate(preds, refs, samples))
         return score
 
 
@@ -101,7 +102,9 @@ class LengthEvaluator(BaseModel):
     Prediction should not be longer than upper treshold * longest reference and shorter than lower treshold * shortest reference
 
     Args:
-        length_penalty (float) : length penalty which is given if the length or prediction id out of bounds
+        name (str) : Then name of evaluator. Defaults to name of class
+        n_workers (int) : Number of concurrent workers evaluating predictions. Not implemented yet.
+        length_penalty (float) : Length penalty which is given if the length or prediction id out of bounds
         low_length_treshold (float) : Multiplier for lower length treshold of shortest reference for that prediction
         upper_length_treshold (float) : Multiplier for upper length treshold of longest reference for that prediction
     """
@@ -110,6 +113,7 @@ class LengthEvaluator(BaseModel):
     length_penalty: float = Field(ge=0, le=1)
     low_length_treshold: float = Field(ge=0, le=1)
     upper_length_treshold: float = Field(ge=1)
+    n_workers: int | None
 
     def evaluate(self, preds: list[str], refs: list[list[str]], samples: list[str] | None = None) -> dict:
         logging.info(f"Evaluating with evaluator: {self}")
@@ -134,15 +138,73 @@ class LengthEvaluator(BaseModel):
         self.__dict__.items()
 
 
-_METRICS_REGISTRY: dict[str, type[MetricEvaluatorI]] = {"LengthEvaluator": LengthEvaluator}
+class SacreBleuEvaluator(BaseModel):
+    """Evaluate predictions and references using bleu scoring
+    More info here: https://huggingface.co/spaces/evaluate-metric/sacrebleu
+
+    Args:
+        name (str) : Name of evaluator, default to name of class.
+        n_workers: Number of concurrent worker evaluating set.
+        smooth_method (str): The smoothing method to use, defaults to 'exp'. Possible values are:
+            'none': no smoothing
+            'floor': increment zero counts
+            'add-k': increment num/denom by k for n>1
+            'exp': exponential decay
+        smooth_value (float): The smoothing value. Only valid when smooth_method='floor' (in which case smooth_value defaults to 0.1) or smooth_method='add-k' (in which case smooth_value defaults to 1).
+        tokenize (str): Tokenization method to use for BLEU. If not provided, defaults to 'zh' for Chinese, 'ja-mecab' for Japanese and '13a' (mteval) otherwise. Possible values are:
+            'none': No tokenization.
+            'zh': Chinese tokenization.
+            '13a': mimics the mteval-v13a script from Moses.
+            'intl': International tokenization, mimics the mteval-v14 script from Moses
+            'char': Language-agnostic character-level tokenization.
+            'ja-mecab': Japanese tokenization. Uses the MeCab tokenizer.
+        lowercase (bool): If True, lowercases the input, enabling case-insensitivity. Defaults to False.
+        force (bool): If True, insists that your tokenized input is actually detokenized. Defaults to False.
+        use_effective_order (bool): If True, stops including n-gram orders for which precision is 0. This should be True, if sentence-level BLEU will be computed. Defaults to False.
+
+    """
+
+    name: str = Field(default="sacrebleu_evaluator")
+    n_workers: int | None = Field(default=1, frozen=True)
+    smooth_method: Literal["none", "floor", "add-k", "exp"] | None = Field(default="none")
+    smooth_value: float | None = Field(default=1)
+    tokenize: Literal["none", "zh", "13a", "intl", "char", "ja-mecab"] | None = Field(default="none")
+    lowercase: bool | None = Field(default=False)
+    force: bool | None = Field(default=False)
+    use_effective_order: bool | None = Field(default=False)
+
+    def evaluate(self, preds: list[str], refs: list[list[str]], samples: list[str] | None) -> dict:
+        evaluator = evaluate.load("sacrebleu", num_process=self.n_workers)
+        return evaluator.compute(
+            predictions=preds,
+            references=refs,
+            smooth_method=self.smooth_method,
+            smooth_value=self.smooth_value,
+            tokenize=self.tokenize,
+            lowercase=self.lowercase,
+            force=self.force,
+            use_effective_order=self.use_effective_order,
+        )
+
+    def get_name(self) -> str:
+        return self.name
+
+    def get_configuration(self) -> dict:
+        return self.__dict__.items()
 
 
-def evaluator_builder(configuration: dict) -> Evaluator:
+_METRICS_REGISTRY: dict[str, type[MetricEvaluatorI]] = {
+    "LengthEvaluator": LengthEvaluator,
+    "SacreBleuEvaluator": SacreBleuEvaluator,
+}
+
+
+def evaluator_builder(configuration: dict, n_workers: int = 1) -> Evaluator:
     logging.debug(f"Building score builder: {configuration['score_settings']}")
     score_builder = EvaluateScoreBuilder(configuration=configuration["score_settings"])
     metrics = []
     for evaluator_entry in configuration["evaluators"]:
         logging.info(f"Building evaluator: {evaluator_entry['class']}")
         eval_cls = _METRICS_REGISTRY[evaluator_entry["class"]]
-        metrics.append(eval_cls(**evaluator_entry["params"]))
+        metrics.append(eval_cls(n_workers=n_workers, **evaluator_entry["params"]))
     return Evaluator(metrics=metrics, evaluate_score_builder=score_builder)

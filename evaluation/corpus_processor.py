@@ -1,4 +1,5 @@
 import ast
+import logging
 import pathlib
 
 import pandas as pd
@@ -19,17 +20,20 @@ class ExtractDocstrings(ast.NodeTransformer):
         docs = ast.get_docstring(node, clean=True).split("\n\n\n")
         ast_fce = remove_docstring(node)
         fce = ast.unparse(ast_fce)
-        self._corpus.append({"function": fce, "docstrings": docs})
+        self._corpus.append({"functions": fce, "docstrings": docs})
         return self.generic_visit(node)
 
     @property
     def corpus(self):
-        return pd.DataFrame(self._corpus, columns=["function", "docstrings"])
+        return pd.DataFrame(self._corpus, columns=["functions", "docstrings"])
 
 
 def load_corpus(corpus_path: pathlib.Path) -> pd.DataFrame:
     raw_code = corpus_path.read_text(encoding="utf-8")
+    logging.debug(f"Loaded corpus data of length: {len(raw_code)}")
     tree = ast.parse(raw_code)
     extract_docstring = ExtractDocstrings()
     extract_docstring.visit(tree)
-    return extract_docstring.corpus
+    corpus = extract_docstring.corpus
+    logging.info(f"Loaded {len(corpus)} samples from corpus")
+    return corpus

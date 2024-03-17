@@ -11,6 +11,17 @@
                 "low_length_treshold": 0.9,
                 "upper_length_treshold": 1.1
             }
+        },
+        {
+            "class": "SacreBleuEvaluator",
+            "params":{
+                "smooth_method": "none",
+                "smooth_value": 0,
+                "tokenize": "intl",
+                "lowercase": false,
+                "force": false,
+                "use_effective_order": false
+            }
         }
     ]
 }
