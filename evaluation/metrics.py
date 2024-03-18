@@ -11,6 +11,7 @@ from typing import Literal, Protocol, TextIO
 import evaluate
 import numpy as np
 from pydantic import BaseModel, Field
+from sentence_transformers import SentenceTransformer, util
 from typing_extensions import runtime_checkable
 
 
@@ -175,7 +176,7 @@ class SacreBleuEvaluator(BaseModel):
 
     def evaluate(self, preds: list[str], refs: list[list[str]], samples: list[str] | None) -> dict:
         evaluator = evaluate.load("sacrebleu", num_process=self.n_workers)
-        return evaluator.compute(
+        result = evaluator.compute(
             predictions=preds,
             references=refs,
             smooth_method=self.smooth_method,
@@ -185,6 +186,105 @@ class SacreBleuEvaluator(BaseModel):
             force=self.force,
             use_effective_order=self.use_effective_order,
         )
+        result["score"] = result["score"] / 100
+        return result
+
+    def get_name(self) -> str:
+        return self.name
+
+    def get_configuration(self) -> dict:
+        return self.__dict__.items()
+
+
+class RougeEvaluator(BaseModel):
+    """Rouge metric evaluator
+    More info here: https://huggingface.co/spaces/evaluate-metric/rouge
+
+    Args:
+        name (str) : Name of evaluator, default to name of class.
+        n_workers: Number of concurrent worker evaluating set.
+        use_stemmer (boolean): If True, uses Porter stemmer to strip word suffixes. Defaults to False.
+    """
+
+    name: str = Field(default="rouge_evaluator")
+    n_workers: int | None = Field(default=1, frozen=True)
+    use_stemmer: bool | None = Field(default=False)
+
+    def evaluate(self, preds: list[str], refs: list[list[str]], samples: list[str] | None) -> dict:
+        evaluator = evaluate.load("rouge", num_process=self.n_workers)
+        result = evaluator.compute(predictions=preds, references=refs, use_stemmer=self.use_stemmer)
+        result["score"] = np.mean([result["rouge1"], result["rouge2"], result["rougeL"]])
+        return result
+
+    def get_name(self) -> str:
+        return self.name
+
+    def get_configuration(self) -> dict:
+        return self.__dict__.items()
+
+
+class MeteorEvaluator(BaseModel):
+    """Meteor metric evaluator
+    More info here: https://huggingface.co/spaces/evaluate-metric/meteor
+
+    Args:
+        name (str) : Name of evaluator, default to name of class.
+        n_workers (int) : Number of concurrent worker evaluating set.
+        alpha (float) : Parameter for controlling relative weights of precision and recall. The default value is 0.9.
+        beta (float) : Parameter for controlling shape of penalty as a function of fragmentation. The default value is 3.
+        gamma (float) : The relative weight assigned to fragmentation penalty. The default is 0.5.
+    """
+
+    name: str = Field(default="meteor_evaluator")
+    n_workers: int | None = Field(default=1, frozen=True)
+    alpha: float = Field(default=0.9)
+    beta: float = Field(default=3)
+    gamma: float = Field(default=0.5)
+
+    def evaluate(self, preds: list[str], refs: list[list[str]], samples: list[str] | None) -> dict:
+        evaluator = evaluate.load("meteor", num_process=self.n_workers)
+        result = evaluator.compute(predictions=preds, references=refs)
+        result["score"] = result["meteor"]
+        return result
+
+    def get_name(self) -> str:
+        return self.name
+
+    def get_configuration(self) -> dict:
+        return self.__dict__.items()
+
+
+class EmbeddingSimilarityEvaluator(BaseModel):
+    """_summary_
+
+    Args:
+        name (str): Name of evaluator, default to name of class.
+        n_workers (int): Number of concurrent worker evaluating set.
+        model_name (str): Name of sentence transformer model
+        device (str): Device to use for sentence transformer model
+    """
+
+    name: str = Field(default="embedding_similarity_evaluator")
+    n_workers: int | None = Field(default=1, frozen=True)
+    model: str
+    device: Literal["cpu", "cuda"] = Field(default="cpu")
+
+    def evaluate(self, preds: list[str], refs: list[list[str]], samples: list[str] | None) -> dict:
+        model = SentenceTransformer(self.model, device=self.device)
+        preds_embeddings = model.encode(preds, device=self.device)
+        refs_embeddings = model.encode(sum(refs, []), device=self.device)
+
+        # reshaping and repeat to match shape of references
+        preds_embeddings = np.repeat(preds_embeddings[:, np.newaxis], len(refs[0]), axis=1)
+        preds_embeddings = preds_embeddings.reshape(-1, preds_embeddings.shape[-1])
+
+        cos_similarities = util.pairwise_cos_sim(preds_embeddings, refs_embeddings)
+        score = {
+            "score": float(cos_similarities.mean()),
+            "average": float(cos_similarities.mean()),
+            "variance": float(cos_similarities.var()),
+        }
+        return score
 
     def get_name(self) -> str:
         return self.name
@@ -196,6 +296,9 @@ class SacreBleuEvaluator(BaseModel):
 _METRICS_REGISTRY: dict[str, type[MetricEvaluatorI]] = {
     "LengthEvaluator": LengthEvaluator,
     "SacreBleuEvaluator": SacreBleuEvaluator,
+    "RougeEvaluator": RougeEvaluator,
+    "MeteorEvaluator": MeteorEvaluator,
+    "EmbeddingSimilarityEvaluator": EmbeddingSimilarityEvaluator,
 }
 
 

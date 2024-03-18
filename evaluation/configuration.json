@@ -22,6 +22,27 @@
                 "force": false,
                 "use_effective_order": false
             }
+        },
+        {
+            "class": "RougeEvaluator",
+            "params": {
+                "use_stemmer": false
+            }
+        },
+        {
+            "class": "MeteorEvaluator",
+            "params": {
+                "alpha": 0.9,
+                "beta": 3,
+                "gamma": 0.5
+            }
+        },
+        {
+            "class": "EmbeddingSimilarityEvaluator",
+            "params":{
+                "model": "all-MiniLM-L6-v2",
+                "device": "cuda"
+            }
         }
     ]
 }
