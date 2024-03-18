@@ -37,3 +37,9 @@ def load_corpus(corpus_path: pathlib.Path) -> pd.DataFrame:
     corpus = extract_docstring.corpus
     logging.info(f"Loaded {len(corpus)} samples from corpus")
     return corpus
+
+
+def save_annotations(data: pd.DataFrame, output: pathlib.Path):
+    annotated = [f"\"\"\"{row['predictions']}\"\"\"\n{row['functions']}" for _, row in data.iterrows()]
+    txt_data = "\n\n\n".join(annotated)
+    output.write_text(txt_data, encoding="utf-8")

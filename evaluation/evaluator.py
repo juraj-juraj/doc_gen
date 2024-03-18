@@ -4,7 +4,7 @@ import logging
 import pathlib
 
 from code_anotation import annotate_corpus
-from corpus_processor import load_corpus
+from corpus_processor import load_corpus, save_annotations
 from metrics import evaluator_builder
 
 
@@ -42,7 +42,7 @@ def main():
     corpus = annotate_corpus(host=args.host, data=corpus, n_workers=args.workers)
     score = evaluator.evaluate(preds=corpus["predictions"], refs=corpus["docstrings"], samples=corpus["functions"])
     score.create_md_report(evaluation_config=args.config, output=args.output)
-
+    save_annotations(data=corpus, output=args.corpus.with_suffix(".annotations.py"))
     # except Exception as e:
     #     logging.error(f"Error occurred: {e}")
 
