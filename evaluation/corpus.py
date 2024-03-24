@@ -1755,3 +1755,83 @@ def linear_extrapolation_plot(log_prob_adv_array, y, file_name, min_epsilon=-10,
     fig.savefig(file_name)
     plt.clf()
     return figure
+
+
+def add_signature(key, inputs, outputs):
+    """Adds a signature to current graph.
+
+    Args:
+        key (str): Signature key as a string.
+        inputs (dict): Signature inputs as a map from string to Tensor or SparseTensor.
+        outputs (dict): Signature outputs as a map from string to Tensor or SparseTensor.
+        (Recall that a Variable is not a Tensor, but Variable.value() is.)
+
+    Raises:
+        TypeError: if the arguments have the wrong types.
+
+
+
+    Adds a signature to the current graph.
+
+    This function adds a signature to the current TensorFlow graph. The signature is identified by the provided `key`,
+    which should be a string.
+
+    Args:
+        key (str): The signature key as a string.
+        inputs (dict): A map of signature inputs, where keys are strings and values are Tensors or SparseTensors.
+        outputs (dict): A map of signature outputs, where keys are strings and values are Tensors or SparseTensors.
+            (Note: A Variable is not a Tensor, but Variable.value() is.)
+
+    Raises:
+        TypeError: If the arguments have the wrong types.
+    """
+    _check_dict_maps_to_tensors_or_sparse_tensors(inputs)
+    _check_dict_maps_to_tensors_or_sparse_tensors(outputs)
+    input_info = {
+        input_name: tf_v1.saved_model.utils.build_tensor_info(tensor) for input_name, tensor in inputs.items()
+    }
+    output_info = {
+        output_name: tf_v1.saved_model.utils.build_tensor_info(tensor) for output_name, tensor in outputs.items()
+    }
+    signature = tf_v1.saved_model.signature_def_utils.build_signature_def(input_info, output_info)
+    tf_v1.add_to_collection(_SIGNATURE_COLLECTION, (key, signature))
+
+
+def shell_call(command, **kwargs):
+    """Calls shell command with parameter substitution.
+
+    Args:
+        command: command to run as a list of tokens
+        **kwargs: dirctionary with substitutions
+
+    Returns:
+        bool: whether command was successful, i.e. returned 0 status code
+
+    Example of usage:
+        shell_call(['cp', '${A}', '${B}'], A='src_file', B='dst_file')
+    will call shell command:
+        cp src_file dst_file
+
+
+
+    Calls a shell command with parameter substitution.
+
+    The `command` argument should be provided as a list of tokens. Any tokens in the form of `${VAR}` will be substituted with the corresponding value
+    from the `kwargs` dictionary.
+
+    Args:
+        command: The command to run as a list of tokens.
+        **kwargs: A dictionary with substitutions.
+
+    Returns:
+        bool: True if the command was successful (returned 0 status code), False otherwise.
+    """
+
+    command = list(command)
+    for i in range(len(command)):
+        m = CMD_VARIABLE_RE.match(command[i])
+        if m:
+            var_id = m.group(1)
+            if var_id in kwargs:
+                command[i] = kwargs[var_id]
+    return subprocess.call(command) == 0
