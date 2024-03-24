@@ -125,7 +125,11 @@ class LengthEvaluator(BaseModel):
 
         penalties = np.array(
             [
-                0 if bound[0] < prediction_len < bound[1] else self.length_penalty
+                (
+                    1
+                    if self.low_length_treshold * bound[0] < prediction_len < self.upper_length_treshold * bound[1]
+                    else 1 - self.length_penalty
+                )
                 for bound, prediction_len in zip(ref_lengths, prediction_lens)
             ]
         )
