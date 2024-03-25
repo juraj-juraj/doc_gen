@@ -16,11 +16,13 @@ from trainer_stat_collector import (
 from transformers import (
     DataCollatorForSeq2Seq,
     EvalPrediction,
+    PreTrainedTokenizer,
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
     Trainer,
     default_data_collator,
 )
+from transformers.tokenization_utils_base import BatchEncoding
 from transformers.trainer_utils import get_last_checkpoint
 
 
@@ -38,9 +40,9 @@ def sacrebleu_metrics(tokenizer) -> Callable:
         if isinstance(preds, tuple):
             preds = preds[0]
         # Replace -100s used for padding as we can't decode them
-        preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+        # preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
         decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+        # labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
         # Some simple post-processing
@@ -61,7 +63,7 @@ class TrainerContainer:
     def __init__(
         self,
         model,
-        tokenizer,
+        tokenizer: PreTrainedTokenizer,
         training_args: Seq2SeqTrainingArguments,
         data_args: DataTrainingArguments,
         stat_collector: StatCollectorI,
@@ -101,14 +103,16 @@ class TrainerContainer:
 
         self.max_length = self.training_args.generation_max_length or self.data_args.val_max_target_length
 
-        label_pad_token_id = -100 if self.data_args.ignore_pad_token_for_loss else self.tokenizer.pad_token_id
+        # label_pad_token_id = -100 if self.data_args.ignore_pad_token_for_loss else self.tokenizer.pad_token_id
         if self.data_args.pad_to_max_length:
             data_collator = default_data_collator
         else:
             data_collator = DataCollatorForSeq2Seq(
                 self.tokenizer,
                 model=self.model,
-                label_pad_token_id=label_pad_token_id,
+                max_length=self.data_args.max_source_length,
+                padding="max_length",
+                label_pad_token_id=self.tokenizer.pad_token_id,
                 pad_to_multiple_of=8 if self.training_args.fp16 else None,
             )
         self.trainer = Seq2SeqTrainer(
@@ -174,7 +178,7 @@ class TrainerContainer:
 
         if self.training_args.predict_with_generate:
             predictions = predict_results.predictions
-            predictions = np.where(predictions != -100, predictions, self.tokenizer.pad_token_id)
+            #  predictions = np.where(predictions != -100, predictions, self.tokenizer.pad_token_id)
             predictions = self.tokenizer.batch_decode(
                 predictions,
                 skip_special_tokens=True,
@@ -223,6 +227,7 @@ class TrainerContainer:
         return checkpoint
 
     def _prepare_dataset(self, raw_datasets: DatasetDict, split: Literal["train", "validation", "test"]) -> Dataset:
+        logging.debug(f"Preparing split: {split}")
         if split not in raw_datasets:
             raise TrainerContainerException(f"{split} section is  not in raw dataset")
 
@@ -246,7 +251,7 @@ class TrainerContainer:
             )
         return split_dataset
 
-    def _preprocess_function(self, examples):
+    def _preprocess_function(self, examples: Dataset) -> BatchEncoding:
         inputs = examples["function"]
         targets = examples["docstring"]
         inputs = [
@@ -260,20 +265,13 @@ class TrainerContainer:
             truncation=True,
         )
 
-        # Tokenize targets with the `text_target` keyword argument
+        # Tokenize targets with the `text_target` keyword argument, as documentation said
         labels = self.tokenizer(
             text_target=targets,
             max_length=self.max_target_length,
             padding=self.padding,
             truncation=True,
         )
-
-        # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
-        # padding in the loss.
-        if self.padding == "max_length" and self.data_args.ignore_pad_token_for_loss:
-            labels["input_ids"] = [
-                [(l if l != self.tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
-            ]
 
         model_inputs["labels"] = labels["input_ids"]
         return model_inputs

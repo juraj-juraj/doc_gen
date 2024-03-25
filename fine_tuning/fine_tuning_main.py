@@ -103,6 +103,11 @@ def main():
         token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
+
+    tokenizer.pad_token_id = (
+        -100 if data_args.pad_to_max_length == True and data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
+    )
+
     model = AutoModelForSeq2SeqLM.from_pretrained(
         model_args.model_name_or_path,
         config=config,
