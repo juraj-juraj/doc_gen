@@ -1,11 +1,12 @@
 import asyncio
+import enum
 import logging
 import pathlib
 import queue
 import threading
 import typing
 from contextlib import asynccontextmanager
-from typing import Any, Literal
+from typing import Literal
 
 import docstring_transformer
 import model_loader
@@ -28,7 +29,14 @@ class AppConfig(BaseModel):
 class AnnotateRequest(BaseModel):
     code: str
     overwrite_docstrings: bool = False
+    
+class TaskType(enum.Enum):
+    annotate_code = "annotate_code"
+    generate_docstring = "generate_docstring"
 
+class GeneralTask(BaseModel):
+    type: TaskType
+    data: typing.Any
 
 class AnnotateWorker(threading.Thread):
     def __init__(
@@ -48,7 +56,11 @@ class AnnotateWorker(threading.Thread):
             task, future_result = self.task_queue.get()
             logging.info(f"Worker: {self.name} annotating task")
             try:
-                completed_task = docstring_transformer.annotate_code(task, docstring_generator=self.model)
+                match task.type:
+                    case TaskType.generate_docstring:
+                        completed_task = docstring_transformer.generate_docstring(task.data, docstring_generator=self.model)
+                    case TaskType.annotate_code:
+                        completed_task = docstring_transformer.annotate_code(task.data, docstring_generator=self.model)
                 future_result.set_result(completed_task)
             except Exception as e:
                 logging.error(f"Worker {self.name} raised exception: {e}")
@@ -77,7 +89,7 @@ class PersistentWorkerPool:
         ]
         [worker.start() for worker in self.workers]
 
-    def submit_task(self, task: any) -> asyncio.Future | None:
+    def submit_task(self, task: GeneralTask) -> asyncio.Future | None:
         logging.info("Creating task to queue")
         future_result = asyncio.Future()
         try:
@@ -116,10 +128,23 @@ app = FastAPI(lifespan=init_workers)
 @app.post("/annotate_code/")
 async def annotate_code(request: AnnotateRequest) -> dict[str, str]:
     global worker_pool
-    logging.info("Received request")
+    logging.info("Annotate code request")
     try:
-        task = worker_pool.submit_task(request.code)
+        task = worker_pool.submit_task(task=GeneralTask(type=TaskType.annotate_code, data=request.code))
 
+    except WorkerPoolException as exception:
+        raise HTTPException(status_code=429, detail=str(exception))
+
+    result = await asyncio.wrap_future(task)
+    return {"result": result}
+
+
+@app.post("/generate_docstring/")
+async def generate_docstring(request: AnnotateRequest) -> dict[str, str]:
+    global worker_pool
+    logging.info("Generate docstring request")
+    try:
+        task = worker_pool.submit_task(task=GeneralTask(type=TaskType.generate_docstring, data=request.code))
     except WorkerPoolException as exception:
         raise HTTPException(status_code=429, detail=str(exception))
 

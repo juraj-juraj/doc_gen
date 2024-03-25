@@ -15,6 +15,7 @@ from trainer_stat_collector import (
 )
 from transformers import (
     DataCollatorForSeq2Seq,
+    EvalPrediction,
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
     Trainer,
@@ -25,13 +26,14 @@ from transformers.trainer_utils import get_last_checkpoint
 
 class TrainerContainerException(ValueError):
     "Special type of exception thrown by trainer Container"
+
     ...
 
 
 def sacrebleu_metrics(tokenizer) -> Callable:
     metric = evaluate.load("sacrebleu")
 
-    def wrapper(eval_preds) -> dict:
+    def wrapper(eval_preds: EvalPrediction) -> dict:
         preds, labels = eval_preds
         if isinstance(preds, tuple):
             preds = preds[0]
