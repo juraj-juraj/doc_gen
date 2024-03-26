@@ -8,6 +8,7 @@ import numpy as np
 from datasets import Dataset, DatasetDict
 from fine_tuning_utils import postprocess_text
 from model_args import DataTrainingArguments
+from optimum.onnxruntime import ORTTrainer, ORTTrainingArguments
 from trainer_stat_collector import (
     StatCollectorI,
     dict_2_md_json,
@@ -111,17 +112,38 @@ class TrainerContainer:
                 self.tokenizer,
                 model=self.model,
                 max_length=self.data_args.max_source_length,
-                padding="max_length",
                 label_pad_token_id=self.tokenizer.pad_token_id,
                 pad_to_multiple_of=8 if self.training_args.fp16 else None,
             )
-        self.trainer = Seq2SeqTrainer(
+        # self.trainer = Seq2SeqTrainer(
+        #     model=self.model,
+        #     args=self.training_args,
+        #     train_dataset=self.train_dataset,
+        #     eval_dataset=self.eval_dataset if self.training_args.do_eval else None,
+        #     tokenizer=self.tokenizer,
+        #     data_collator=data_collator,
+        #     compute_metrics=metrics_fce if self.training_args.predict_with_generate else None,
+        #     callbacks=[self.stat_collector],
+        # )
+        args = ORTTrainingArguments(
+            output_dir=self.training_args.output_dir,
+            evaluation_strategy=self.training_args.evaluation_strategy,
+            learning_rate=self.training_args.learning_rate,
+            per_device_train_batch_size=self.training_args.per_device_train_batch_size,
+            per_device_eval_batch_size=self.training_args.per_device_eval_batch_size,
+            num_train_epochs=self.training_args.num_train_epochs,
+            weight_decay=self.training_args.weight_decay,
+            optim=self.training_args.optim,
+            deepspeed=self.training_args.deepspeed,
+        )
+
+        self.trainer = ORTTrainer(
             model=self.model,
-            args=self.training_args,
+            args=args,
             train_dataset=self.train_dataset,
-            eval_dataset=self.eval_dataset if self.training_args.do_eval else None,
-            tokenizer=self.tokenizer,
+            eval_dataset=self.eval_dataset,
             data_collator=data_collator,
+            tokenizer=self.tokenizer,
             compute_metrics=metrics_fce if self.training_args.predict_with_generate else None,
             callbacks=[self.stat_collector],
         )
