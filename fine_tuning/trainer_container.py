@@ -60,7 +60,7 @@ def sacrebleu_metrics(tokenizer) -> Callable:
     return wrapper
 
 
-def embedding_metric(tokenizer, model: str = "all-MiniLM-L6-v2", device: str = "cuda") -> Callable:
+def embedding_similarity_metric(tokenizer, model: str = "all-MiniLM-L6-v2", device: str = "cuda") -> Callable:
     metric = sentence_transformers.SentenceTransformer(model, device=device)
 
     def wrapper(eval_preds: EvalPrediction):
@@ -81,6 +81,9 @@ def embedding_metric(tokenizer, model: str = "all-MiniLM-L6-v2", device: str = "
         return {"score": score}
 
     return wrapper
+
+
+METRICS_MAP = {"sacrebleu": sacrebleu_metrics, "embedding_similarity": embedding_similarity_metric}
 
 
 class TrainerContainer:
@@ -121,11 +124,12 @@ class TrainerContainer:
                 " memory"
             )
 
-    def prepare_trainer(self, raw_datasets: DatasetDict, metrics_fce: Callable):
+    def prepare_trainer(self, raw_datasets: DatasetDict):
         self.train_dataset = self._prepare_dataset(raw_datasets, "train")
         self.eval_dataset = self._prepare_dataset(raw_datasets, "validation")
 
         self.max_length = self.training_args.generation_max_length or self.data_args.val_max_target_length
+        metrics_fce = METRICS_MAP[self.data_args.metric_function](self.tokenizer)
 
         # label_pad_token_id = -100 if self.data_args.ignore_pad_token_for_loss else self.tokenizer.pad_token_id
         if self.data_args.pad_to_max_length:

@@ -11,6 +11,7 @@ from model_args import DataTrainingArguments, ModelArguments
 from trainer_container import (
     TrainerContainer,
     TrainerContainerException,
+    embedding_metric,
     sacrebleu_metrics,
 )
 from trainer_stat_collector import StatCollectorException, TrainerStatCollector
@@ -118,7 +119,7 @@ def main():
     )
 
     trainer_container = TrainerContainer(model, tokenizer, training_args, data_args, stat_collector)
-    trainer_container.prepare_trainer(raw_datasets, sacrebleu_metrics(tokenizer))
+    trainer_container.prepare_trainer(raw_datasets, )
 
     if training_args.do_train:
         trainer_container.do_train()
