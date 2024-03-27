@@ -15,7 +15,9 @@
     "auto_find_batch_size": true,
     "learning_rate": 1e-5,
     "num_train_epochs": 4,
+    "save_steps": 4000,
     "pad_to_max_length": false,
     "preprocessing_num_workers": 4,
-    "fp16": true
+    "fp16": true,
+    "metric_function": "embedding_similarity"
 }
