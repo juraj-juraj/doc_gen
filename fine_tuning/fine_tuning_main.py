@@ -8,12 +8,7 @@ import sys
 import datasets
 import transformers
 from model_args import DataTrainingArguments, ModelArguments
-from trainer_container import (
-    TrainerContainer,
-    TrainerContainerException,
-    embedding_metric,
-    sacrebleu_metrics,
-)
+from trainer_container import TrainerContainer, TrainerContainerException
 from trainer_stat_collector import StatCollectorException, TrainerStatCollector
 from transformers import (
     AutoConfig,
@@ -105,10 +100,6 @@ def main():
         trust_remote_code=model_args.trust_remote_code,
     )
 
-    tokenizer.pad_token_id = (
-        -100 if data_args.pad_to_max_length == True and data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    )
-
     model = AutoModelForSeq2SeqLM.from_pretrained(
         model_args.model_name_or_path,
         config=config,
@@ -119,7 +110,9 @@ def main():
     )
 
     trainer_container = TrainerContainer(model, tokenizer, training_args, data_args, stat_collector)
-    trainer_container.prepare_trainer(raw_datasets, )
+    trainer_container.prepare_trainer(
+        raw_datasets,
+    )
 
     if training_args.do_train:
         trainer_container.do_train()

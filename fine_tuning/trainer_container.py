@@ -41,9 +41,9 @@ def sacrebleu_metrics(tokenizer) -> Callable:
         if isinstance(preds, tuple):
             preds = preds[0]
         # Replace -100s used for padding as we can't decode them
-        # preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+        preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
         decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-        # labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
         # Some simple post-processing
@@ -68,9 +68,9 @@ def embedding_similarity_metric(tokenizer, model: str = "all-MiniLM-L6-v2", devi
         if isinstance(preds, tuple):
             preds = preds[0]
         # Replace -100s used for padding as we can't decode them
-        # preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+        preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
         decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-        # labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
         # Some simple post-processing
@@ -131,7 +131,7 @@ class TrainerContainer:
         self.max_length = self.training_args.generation_max_length or self.data_args.val_max_target_length
         metrics_fce = METRICS_MAP[self.data_args.metric_function](self.tokenizer)
 
-        # label_pad_token_id = -100 if self.data_args.ignore_pad_token_for_loss else self.tokenizer.pad_token_id
+        label_pad_token_id = -100 if self.data_args.ignore_pad_token_for_loss else self.tokenizer.pad_token_id
         if self.data_args.pad_to_max_length:
             data_collator = default_data_collator
         else:
@@ -139,7 +139,7 @@ class TrainerContainer:
                 self.tokenizer,
                 model=self.model,
                 max_length=self.data_args.max_source_length,
-                label_pad_token_id=self.tokenizer.pad_token_id,
+                label_pad_token_id=label_pad_token_id,
                 pad_to_multiple_of=8 if self.training_args.fp16 else None,
             )
         self.trainer = Seq2SeqTrainer(
@@ -205,7 +205,7 @@ class TrainerContainer:
 
         if self.training_args.predict_with_generate:
             predictions = predict_results.predictions
-            #  predictions = np.where(predictions != -100, predictions, self.tokenizer.pad_token_id)
+            predictions = np.where(predictions != -100, predictions, self.tokenizer.pad_token_id)
             predictions = self.tokenizer.batch_decode(
                 predictions,
                 skip_special_tokens=True,
@@ -292,13 +292,20 @@ class TrainerContainer:
             truncation=True,
         )
 
-        # Tokenize targets with the `text_target` keyword argument, as documentation said
+        # Tokenize targets with the `text_target` keyword argument, for labels
         labels = self.tokenizer(
             text_target=targets,
             max_length=self.max_target_length,
             padding=self.padding,
             truncation=True,
         )
+
+        # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
+        # padding in the loss.
+        if self.padding == "max_length" and self.data_args.ignore_pad_token_for_loss:
+            labels["input_ids"] = [
+                [(l if l != self.tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
+            ]
 
         model_inputs["labels"] = labels["input_ids"]
         return model_inputs
