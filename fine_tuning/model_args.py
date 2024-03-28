@@ -160,6 +160,14 @@ class DataTrainingArguments:
             )
         },
     )
+    metric_function: Optional[str] = field(
+        default="sacrebleu",
+        metadata={
+            "help": (
+                "The name of the metric function. You can choose one of the loss functions defined in the `trainer_container.py."
+            )
+        },
+    )
 
     def __post_init__(self):
         if self.dataset_name is None:

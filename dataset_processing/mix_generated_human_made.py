@@ -12,11 +12,11 @@ import pandas as pd
 
 GENERATED_PKL = pathlib.Path("../data/gpt_generated_google_style.pkl")
 HUMAN_MADE_DATASET = pathlib.Path("../data/googlestyle_dataset_processed_2.ds")
-NEW_DATASET_NAME = pathlib.Path("../data/google_style_gpt_human_mix.ds")
+NEW_DATASET_NAME = pathlib.Path("../data/google_style_gpt_human_mix_2.ds")
 
 
 def main():
-    generated_df = pd.read_pickle(GENERATED_PKL)
+    generated_df: pd.DataFrame = pd.read_pickle(GENERATED_PKL)
     human_ds = datasets.load_from_disk(HUMAN_MADE_DATASET)
 
     human_df: pd.DataFrame = pd.concat(
@@ -24,9 +24,11 @@ def main():
     )
     human_df = human_df.reset_index()
 
-    train_split_df = pd.concat([generated_df, human_df.iloc[0:15000]]).sample(frac=1).reset_index()
-    validation_split_df = human_df.iloc[15000:22000]
-    test_split_df = human_df[22000:]
+    train_split_df = (
+        pd.concat([generated_df, human_df.iloc[0:15000]]).sample(frac=1).reset_index()[["function", "docstring"]]
+    )
+    validation_split_df = human_df.iloc[15000:22000][["function", "docstring"]]
+    test_split_df = human_df.iloc[22000:][["function", "docstring"]]
 
     ds_test = datasets.Dataset.from_pandas(test_split_df)
     ds_validation = datasets.Dataset.from_pandas(validation_split_df)
