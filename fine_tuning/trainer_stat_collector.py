@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import pathlib
 import time
@@ -64,9 +65,6 @@ class TrainerStatCollector(TrainerCallback):
         return self.report_dir
 
     def on_evaluate(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
-        """
-        Event called after an evaluation phase.
-        """
         print("---------------- evaluate")
         print(f"kwargs keys: {kwargs.keys()}")
         print(f"metrics keys: {kwargs['metrics'].keys()}")
@@ -74,10 +72,16 @@ class TrainerStatCollector(TrainerCallback):
 
     def on_log(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
         logs = kwargs["logs"]
-        if Counter(list(self.train_metrics.columns)) == Counter(logs.keys()):
-            # got log with keys loss, learning rate, epoch. We are in middle of training
+        if "loss" in logs and "epoch" in logs and "learning_rate" in logs:
             self.train_metrics = pd.concat(
-                [self.train_metrics, pd.DataFrame(logs, index=[len(self.train_metrics)])], ignore_index=True
+                [
+                    self.train_metrics,
+                    pd.DataFrame(
+                        {"loss": logs["loss"], "learning_rate": logs["learning_rate"], "epoch": logs["epoch"]},
+                        index=[len(self.train_metrics)],
+                    ),
+                ],
+                ignore_index=True,
             )
 
     def get_text_field(self, key: str) -> str:
@@ -87,6 +91,10 @@ class TrainerStatCollector(TrainerCallback):
         self.text_fields[heading] = body
 
     def _create_loss_graph(self):
+        logging.info("Creating loss graph")
+        logging.info(f"Values: {self.train_metrics['loss']}")
+        if self.train_metrics.empty:
+            logging.warning("No loss values to create graph")
         if self.report_dir == None:
             raise StatCollectorException("To create graph setup report directory beforehand")
 
