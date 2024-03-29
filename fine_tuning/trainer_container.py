@@ -33,7 +33,7 @@ class TrainerContainerException(ValueError):
     ...
 
 
-def sacrebleu_metrics(tokenizer) -> Callable:
+def sacrebleu_metrics(tokenizer: PreTrainedTokenizer) -> Callable:
     metric = evaluate.load("sacrebleu")
 
     def wrapper(eval_preds: EvalPrediction) -> dict:
@@ -60,7 +60,9 @@ def sacrebleu_metrics(tokenizer) -> Callable:
     return wrapper
 
 
-def embedding_similarity_metric(tokenizer, model: str = "all-MiniLM-L6-v2", device: str = "cuda") -> Callable:
+def embedding_similarity_metric(
+    tokenizer: PreTrainedTokenizer, model: str = "all-MiniLM-L6-v2", device: str = "cuda"
+) -> Callable:
     metric = sentence_transformers.SentenceTransformer(model, device=device)
 
     def wrapper(eval_preds: EvalPrediction):
@@ -73,10 +75,8 @@ def embedding_similarity_metric(tokenizer, model: str = "all-MiniLM-L6-v2", devi
         labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
-        # Some simple post-processing
-        decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
         preds_embeddings = metric.encode(decoded_preds, device=device)
-        refs_embeddings = metric.encode(decoded_labels, device=device)
+        refs_embeddings = metric.encode(decoded_labels, device=device, show_progress_bar=True)
         score = sentence_transformers.util.pairwise_cos_sim(preds_embeddings, refs_embeddings).mean()
         return {"score": score}
 

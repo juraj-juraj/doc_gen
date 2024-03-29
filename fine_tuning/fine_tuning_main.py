@@ -60,9 +60,7 @@ def main():
 
     json_configuration = pathlib.Path(args.configuration).read_text(encoding="utf-8")
     json_configuration = json.loads(json_configuration)
-    stat_collector = TrainerStatCollector(
-        train_paramers=json_configuration, experiment_description="Using tokenizer from codet5p small"
-    )
+    stat_collector = TrainerStatCollector(train_paramers=json_configuration)
     log_level = training_args.get_process_log_level()
     report_dir = pathlib.Path(stat_collector.init_report_directory())
 
