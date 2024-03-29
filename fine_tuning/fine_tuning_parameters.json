@@ -4,16 +4,20 @@
     "do_eval": true,
     "do_predict": true,
     "source_prefix": "Generate docstring to python function: ",
-    "dataset_name": "juraj-juraj/doc_gen",
-    "output_dir": "./t5_upgrade",
-    "per_device_train_batch_size": 6,
-    "per_device_eval_batch_size": 4,
+    "dataset_name": "juraj-juraj/python-docstring-human-gpt-generated-mix",
+    "output_dir": "./code_t5p_upgrade_1",
+    "per_device_train_batch_size": 1,
+    "per_device_eval_batch_size": 1,
     "predict_with_generate": true,
-    "max_train_samples": 40000,
+    "max_train_samples": 10000,
     "overwrite_output_dir": true,
     "log_level": "info",
     "auto_find_batch_size": true,
     "learning_rate": 1e-5,
-    "num_train_epochs": 4
-
+    "num_train_epochs": 4,
+    "save_steps": 4000,
+    "pad_to_max_length": true,
+    "preprocessing_num_workers": 1,
+    "fp16": false,
+    "metric_function": "embedding_similarity"
 }

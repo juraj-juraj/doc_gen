@@ -8,11 +8,7 @@ import sys
 import datasets
 import transformers
 from model_args import DataTrainingArguments, ModelArguments
-from trainer_container import (
-    TrainerContainer,
-    TrainerContainerException,
-    sacrebleu_metrics,
-)
+from trainer_container import TrainerContainer, TrainerContainerException
 from trainer_stat_collector import StatCollectorException, TrainerStatCollector
 from transformers import (
     AutoConfig,
@@ -64,9 +60,7 @@ def main():
 
     json_configuration = pathlib.Path(args.configuration).read_text(encoding="utf-8")
     json_configuration = json.loads(json_configuration)
-    stat_collector = TrainerStatCollector(
-        train_paramers=json_configuration, experiment_description="Using tokenizer from codet5p small"
-    )
+    stat_collector = TrainerStatCollector(train_paramers=json_configuration)
     log_level = training_args.get_process_log_level()
     report_dir = pathlib.Path(stat_collector.init_report_directory())
 
@@ -103,6 +97,7 @@ def main():
         token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
+
     model = AutoModelForSeq2SeqLM.from_pretrained(
         model_args.model_name_or_path,
         config=config,
@@ -113,7 +108,9 @@ def main():
     )
 
     trainer_container = TrainerContainer(model, tokenizer, training_args, data_args, stat_collector)
-    trainer_container.prepare_trainer(raw_datasets, sacrebleu_metrics(tokenizer))
+    trainer_container.prepare_trainer(
+        raw_datasets,
+    )
 
     if training_args.do_train:
         trainer_container.do_train()

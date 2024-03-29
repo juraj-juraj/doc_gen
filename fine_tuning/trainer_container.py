@@ -5,6 +5,7 @@ from typing import Callable, Literal
 
 import evaluate
 import numpy as np
+import sentence_transformers
 from datasets import Dataset, DatasetDict
 from fine_tuning_utils import postprocess_text
 from model_args import DataTrainingArguments
@@ -16,11 +17,13 @@ from trainer_stat_collector import (
 from transformers import (
     DataCollatorForSeq2Seq,
     EvalPrediction,
+    PreTrainedTokenizer,
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
     Trainer,
     default_data_collator,
 )
+from transformers.tokenization_utils_base import BatchEncoding
 from transformers.trainer_utils import get_last_checkpoint
 
 
@@ -30,7 +33,7 @@ class TrainerContainerException(ValueError):
     ...
 
 
-def sacrebleu_metrics(tokenizer) -> Callable:
+def sacrebleu_metrics(tokenizer: PreTrainedTokenizer) -> Callable:
     metric = evaluate.load("sacrebleu")
 
     def wrapper(eval_preds: EvalPrediction) -> dict:
@@ -57,11 +60,37 @@ def sacrebleu_metrics(tokenizer) -> Callable:
     return wrapper
 
 
+def embedding_similarity_metric(
+    tokenizer: PreTrainedTokenizer, model: str = "all-MiniLM-L6-v2", device: str = "cuda"
+) -> Callable:
+    metric = sentence_transformers.SentenceTransformer(model, device=device)
+
+    def wrapper(eval_preds: EvalPrediction):
+        preds, labels = eval_preds
+        if isinstance(preds, tuple):
+            preds = preds[0]
+        # Replace -100s used for padding as we can't decode them
+        preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+        decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+        decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+        preds_embeddings = metric.encode(decoded_preds, device=device)
+        refs_embeddings = metric.encode(decoded_labels, device=device, show_progress_bar=True)
+        score = sentence_transformers.util.pairwise_cos_sim(preds_embeddings, refs_embeddings).mean()
+        return {"score": score}
+
+    return wrapper
+
+
+METRICS_MAP = {"sacrebleu": sacrebleu_metrics, "embedding_similarity": embedding_similarity_metric}
+
+
 class TrainerContainer:
     def __init__(
         self,
         model,
-        tokenizer,
+        tokenizer: PreTrainedTokenizer,
         training_args: Seq2SeqTrainingArguments,
         data_args: DataTrainingArguments,
         stat_collector: StatCollectorI,
@@ -95,11 +124,12 @@ class TrainerContainer:
                 " memory"
             )
 
-    def prepare_trainer(self, raw_datasets: DatasetDict, metrics_fce: Callable):
+    def prepare_trainer(self, raw_datasets: DatasetDict):
         self.train_dataset = self._prepare_dataset(raw_datasets, "train")
         self.eval_dataset = self._prepare_dataset(raw_datasets, "validation")
 
         self.max_length = self.training_args.generation_max_length or self.data_args.val_max_target_length
+        metrics_fce = METRICS_MAP[self.data_args.metric_function](self.tokenizer)
 
         label_pad_token_id = -100 if self.data_args.ignore_pad_token_for_loss else self.tokenizer.pad_token_id
         if self.data_args.pad_to_max_length:
@@ -108,6 +138,7 @@ class TrainerContainer:
             data_collator = DataCollatorForSeq2Seq(
                 self.tokenizer,
                 model=self.model,
+                max_length=self.data_args.max_source_length,
                 label_pad_token_id=label_pad_token_id,
                 pad_to_multiple_of=8 if self.training_args.fp16 else None,
             )
@@ -223,6 +254,7 @@ class TrainerContainer:
         return checkpoint
 
     def _prepare_dataset(self, raw_datasets: DatasetDict, split: Literal["train", "validation", "test"]) -> Dataset:
+        logging.debug(f"Preparing split: {split}")
         if split not in raw_datasets:
             raise TrainerContainerException(f"{split} section is  not in raw dataset")
 
@@ -246,7 +278,7 @@ class TrainerContainer:
             )
         return split_dataset
 
-    def _preprocess_function(self, examples):
+    def _preprocess_function(self, examples: Dataset) -> BatchEncoding:
         inputs = examples["function"]
         targets = examples["docstring"]
         inputs = [
@@ -260,7 +292,7 @@ class TrainerContainer:
             truncation=True,
         )
 
-        # Tokenize targets with the `text_target` keyword argument
+        # Tokenize targets with the `text_target` keyword argument, for labels
         labels = self.tokenizer(
             text_target=targets,
             max_length=self.max_target_length,
