@@ -6,6 +6,7 @@ from typing import Callable, Literal
 import evaluate
 import numpy as np
 import sentence_transformers
+from accelerate import Accelerator
 from datasets import Dataset, DatasetDict
 from fine_tuning_utils import postprocess_text
 from model_args import DataTrainingArguments
@@ -138,19 +139,23 @@ class TrainerContainer:
             data_collator = DataCollatorForSeq2Seq(
                 self.tokenizer,
                 model=self.model,
+                padding=self.padding,
                 max_length=self.data_args.max_source_length,
                 label_pad_token_id=label_pad_token_id,
                 pad_to_multiple_of=8 if self.training_args.fp16 else None,
             )
-        self.trainer = Seq2SeqTrainer(
-            model=self.model,
-            args=self.training_args,
-            train_dataset=self.train_dataset,
-            eval_dataset=self.eval_dataset if self.training_args.do_eval else None,
-            tokenizer=self.tokenizer,
-            data_collator=data_collator,
-            compute_metrics=metrics_fce if self.training_args.predict_with_generate else None,
-            callbacks=[self.stat_collector],
+        accelerator = Accelerator()
+        self.trainer = accelerator.prepare(
+            Seq2SeqTrainer(
+                model=self.model,
+                args=self.training_args,
+                train_dataset=self.train_dataset,
+                eval_dataset=self.eval_dataset if self.training_args.do_eval else None,
+                tokenizer=self.tokenizer,
+                data_collator=data_collator,
+                compute_metrics=metrics_fce if self.training_args.predict_with_generate else None,
+                callbacks=[self.stat_collector],
+            )
         )
 
     def do_train(self) -> None:

@@ -10,6 +10,8 @@
     "per_device_eval_batch_size": 1,
     "predict_with_generate": true,
     "max_train_samples": 10000,
+    "max_eval_samples": 1000,
+    "max_predict_samples": 1000,
     "overwrite_output_dir": true,
     "log_level": "info",
     "auto_find_batch_size": true,
@@ -19,5 +21,5 @@
     "pad_to_max_length": true,
     "preprocessing_num_workers": 1,
     "fp16": false,
-    "metric_function": "embedding_similarity"
+    "metric_function": "sacrebleu"
 }
