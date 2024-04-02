@@ -1,0 +1,8 @@
+{
+    "general":
+    {
+        "model": "juraj-juraj/led_large_16384_docstring",
+        "source_prefix": "Generate docstring to python function:\n",
+        "commit": "7c961c0416f6aaaea7c7b244b3b18e9f2c920ae3"
+    }
+}
