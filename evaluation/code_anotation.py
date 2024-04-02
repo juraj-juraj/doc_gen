@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import backoff
 import httpx
 import pandas as pd
+from model_loader import ModelI, load_model
 
 
 class AnnotateBatchException(Exception): ...
@@ -30,7 +31,7 @@ def annotate_batch(batch: pd.DataFrame, host: str) -> pd.DataFrame:
     return batch
 
 
-def annotate_corpus(host: str, data: pd.DataFrame, n_workers: int = 1):
+def annotate_corpus_http(host: str, data: pd.DataFrame, n_workers: int = 1) -> pd.DataFrame:
     chunk_size = len(data) // n_workers
     batches = [data.iloc[i : i + chunk_size].copy() for i in range(0, len(data), chunk_size)]
     with ThreadPoolExecutor(max_workers=n_workers) as executor:
@@ -38,3 +39,10 @@ def annotate_corpus(host: str, data: pd.DataFrame, n_workers: int = 1):
         results = [future.result() for future in futures]
     preds_df = pd.concat(results)
     return preds_df.sort_index()
+
+
+def annotate_corpus_model(model: str, data: pd.DataFrame) -> pd.DataFrame:
+    model_cls = load_model(model)
+    model_instance = model_cls(device="cuda")
+    data.loc[:, "predictions"] = data["functions"].apply(lambda x: model_instance.generate(x))
+    return data
