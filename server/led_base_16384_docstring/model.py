@@ -1,7 +1,6 @@
 import logging
 import pathlib
 
-import ctranslate2
 import transformers
 from pydantic import BaseModel
 

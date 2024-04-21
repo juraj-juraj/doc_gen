@@ -1,0 +1,7 @@
+Generovanie dokumentácie k zdrojovému kódu v programovacom jazyku Python
+
+1. Naštudujte zauživané štýly dokumentácie k zdrojovému kódu v programovacom jazyku Python. Popíšte ich štruktúru a význam jednotlivých častí.
+2. Spracujte dostupné dáta komentovaného kódu, tak aby boli vhodné na adaptáciu jazykového modelu.
+3. Zistite aké sú voľne dosptupné modely, vhodné na túto úlohu. Posúďte ich možnosti a veľkosť. Vyberte niekoľko modelov, skúste ich adaptovať na vami pripravených dátach.
+4. Kvantitaívne zhodnoťte kvalitu adaptovaných modelov. Porovnajte ich s dostupnými konkurečnými riešeniami, napríklad GPT-3.
+5. Navrhnite systém, ktorý by umožnil užívateľovi použiť vami adaptované modely na bežne dostupnom hardware.

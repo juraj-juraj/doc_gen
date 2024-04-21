@@ -18,6 +18,7 @@
     "learning_rate": 1e-5,
     "num_train_epochs": 4,
     "save_steps": 4000,
+    "save_total_limit": 2,
     "pad_to_max_length": true,
     "preprocessing_num_workers": 1,
     "fp16": false,
