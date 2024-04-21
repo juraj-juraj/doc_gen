@@ -3,7 +3,7 @@ import json
 import logging
 import pathlib
 
-from code_anotation import annotate_corpus
+from code_anotation import annotate_corpus_http, annotate_corpus_model
 from corpus_processor import load_corpus, save_annotations
 from metrics import evaluator_builder
 
@@ -15,7 +15,15 @@ def parse_configuration(config_path: str) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="Script to quantitatively evaluate docstring generator")
-    parser.add_argument("-H", "--host", required=True, type=str, help="Host serving api for docstring generation")
+    annotator_group = parser.add_mutually_exclusive_group(required=True)
+
+    annotator_group.add_argument("-H", "--host", type=str, help="Host serving api for docstring generation")
+    annotator_group.add_argument(
+        "-m",
+        "--model",
+        type=pathlib.Path,
+        help="Path to model for docstring generation, if provided, host will be ignored",
+    )
     parser.add_argument(
         "-d", "--corpus", required=True, type=pathlib.Path, help="Reference docstring generating problems"
     )
@@ -39,7 +47,14 @@ def main():
 
     evaluator = evaluator_builder(args.config)
     corpus = load_corpus(corpus_path=args.corpus)
-    corpus = annotate_corpus(host=args.host, data=corpus, n_workers=args.workers)
+
+    if args.host:
+        logging.info(f"Annotating corpus using http at {args.host}")
+        corpus = annotate_corpus_http(host=args.host, data=corpus, n_workers=args.workers)
+    elif args.model:
+        logging.info(f"Annotating corpus using model at {args.model}")
+        corpus = annotate_corpus_model(model=args.model, data=corpus)
+
     score = evaluator.evaluate(preds=corpus["predictions"], refs=corpus["docstrings"], samples=corpus["functions"])
     score.create_md_report(evaluation_config=args.config, output=args.output)
     save_annotations(data=corpus, output=args.corpus.with_suffix(".annotations.py"))

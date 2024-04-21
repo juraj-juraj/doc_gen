@@ -7,7 +7,6 @@ from threading import Thread
 import backoff
 import openai
 import pandas as pd
-from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 
 def setup_logging(log_level: int = logging.WARNING):
@@ -28,7 +27,6 @@ class completion_worker(Thread):
         self.result = None
         self.worker_id = worker_id
 
-    # @retry(wait=wait_random_exponential(min=20, max=70), stop=stop_after_attempt(50))
     @backoff.on_exception(backoff.expo, openai.RateLimitError)
     def _send_request(self, code: str):
         logging.info(f"Worker {self.worker_id}: Sending request")
