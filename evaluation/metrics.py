@@ -4,13 +4,14 @@ import functools
 import json
 import logging
 import operator
-import sys
 import time
+from collections.abc import ItemsView
 from typing import Literal, Protocol, TextIO
 
 import evaluate
 import numpy as np
-from pydantic import BaseModel, Field
+from lark import Lark
+from pydantic import BaseModel, Field, FilePath
 from sentence_transformers import SentenceTransformer, util
 from typing_extensions import runtime_checkable
 
@@ -21,7 +22,7 @@ class MetricEvaluatorI(Protocol):
 
     def get_name(self) -> str: ...
 
-    def get_configuration(self) -> dict: ...
+    def get_configuration(self) -> ItemsView: ...
 
 
 class EvaluateScoreException(Exception): ...
@@ -54,7 +55,7 @@ class EvaluateScore(BaseModel):
     def get_final_score(self) -> dict:
         return self._compute_results()[self.compress_scores]
 
-    def create_md_report(self, evaluation_config: dict, output: TextIO | sys.stdout = sys.stdout) -> None:
+    def create_md_report(self, evaluation_config: dict, output: TextIO) -> None:
         report_time = time.strftime("%x %X", time.localtime())
         score_results = self._compute_results()
         m_indent = 2
@@ -139,8 +140,45 @@ class LengthEvaluator(BaseModel):
     def get_name(self) -> str:
         return self.name
 
-    def get_configuration(self) -> dict:
-        self.__dict__.items()
+    def get_configuration(self) -> ItemsView:
+        return self.__dict__.items()
+
+
+class GrammarEvaluator(BaseModel):
+    """Evaluate whether generated docstring is syntactically correct
+
+    Args:
+        name (str) : Then name of evaluator. Defaults to name of class
+        penalty (float) : Penalty given in case of prediction not being structured according to grammar
+
+    """
+
+    name: str = Field(default="grammar_evaluator")
+    penalty: float = Field(ge=0, le=1)
+    grammar_file: FilePath
+
+    def __post_init__(self):
+        with open(self.grammar_file, "r") as f:
+            self.parser = Lark(f.read())
+
+    def evaluate(self, preds: list[str], refs: list[list[str]], samples: list[str] | None = None) -> dict:
+
+        def _parse(text: str) -> bool:
+            try:
+                self.parser.parse(text)
+            except Exception:
+                return False
+            else:
+                return True
+
+        score = np.array([1 if _parse(docstring) == True else 1 - self.penalty for docstring in preds])
+        return {"score": score.mean(), "average": score.mean(), "variance": score.var()}
+
+    def get_name(self) -> str:
+        return self.name
+
+    def get_configuration(self) -> ItemsView:
+        return self.__dict__.items()
 
 
 class SacreBleuEvaluator(BaseModel):
@@ -196,7 +234,7 @@ class SacreBleuEvaluator(BaseModel):
     def get_name(self) -> str:
         return self.name
 
-    def get_configuration(self) -> dict:
+    def get_configuration(self) -> ItemsView:
         return self.__dict__.items()
 
 
@@ -223,7 +261,7 @@ class RougeEvaluator(BaseModel):
     def get_name(self) -> str:
         return self.name
 
-    def get_configuration(self) -> dict:
+    def get_configuration(self) -> ItemsView:
         return self.__dict__.items()
 
 
@@ -254,7 +292,7 @@ class MeteorEvaluator(BaseModel):
     def get_name(self) -> str:
         return self.name
 
-    def get_configuration(self) -> dict:
+    def get_configuration(self) -> ItemsView:
         return self.__dict__.items()
 
 
@@ -293,12 +331,13 @@ class EmbeddingSimilarityEvaluator(BaseModel):
     def get_name(self) -> str:
         return self.name
 
-    def get_configuration(self) -> dict:
+    def get_configuration(self) -> ItemsView:
         return self.__dict__.items()
 
 
 _METRICS_REGISTRY: dict[str, type[MetricEvaluatorI]] = {
     "LengthEvaluator": LengthEvaluator,
+    "GrammarEvaluator": GrammarEvaluator,
     "SacreBleuEvaluator": SacreBleuEvaluator,
     "RougeEvaluator": RougeEvaluator,
     "MeteorEvaluator": MeteorEvaluator,
