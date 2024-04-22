@@ -157,15 +157,13 @@ class GrammarEvaluator(BaseModel):
     penalty: float = Field(ge=0, le=1)
     grammar_file: FilePath
 
-    def __post_init__(self):
-        with open(self.grammar_file, "r") as f:
-            self.parser = Lark(f.read())
-
     def evaluate(self, preds: list[str], refs: list[list[str]], samples: list[str] | None = None) -> dict:
+        with open(self.grammar_file, "r") as f:
+            parser = Lark(f.read())
 
         def _parse(text: str) -> bool:
             try:
-                self.parser.parse(text)
+                parser.parse(text)
             except Exception:
                 return False
             else:
