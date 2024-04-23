@@ -1,8 +1,4 @@
 {
-    "score_settings":
-    {
-        "compress_scores": "average"
-    },
     "evaluators": [
         {
             "class": "LengthEvaluator",

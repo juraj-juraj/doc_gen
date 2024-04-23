@@ -32,15 +32,11 @@ class EvaluateScore(BaseModel):
     """Evaluate scores encapsulation
     Add scores from different metrics, compress them and create report
 
-    Args:
-        compress_scores
-
     Raises:
         EvaluateScoreException: raises exception if same metric result is added twice
     """
 
     metric_results: dict = Field(default_factory=dict)
-    compress_scores: Literal["average", "variance", "product", "sum"] = Field(default="average")
 
     def add_result(self, metric_name: str, stats: dict):
         if metric_name in self.metric_results:
@@ -51,9 +47,6 @@ class EvaluateScore(BaseModel):
         scores = np.array([metric["score"] for metric in self.metric_results.values()])
         product = functools.reduce(operator.mul, scores)
         return {"average": scores.mean(), "variance": scores.var(), "product": product, "sum": scores.sum()}
-
-    def get_final_score(self) -> dict:
-        return self._compute_results()[self.compress_scores]
 
     def create_md_report(self, evaluation_config: dict, output: TextIO) -> None:
         report_time = time.strftime("%x %X", time.localtime())
@@ -79,7 +72,7 @@ class EvaluateScore(BaseModel):
 
 
 class EvaluateScoreBuilder(BaseModel):
-    configuration: dict
+    configuration: dict = Field(default_factory=dict)
 
     def build(self) -> EvaluateScore:
         return EvaluateScore(**self.configuration)
@@ -344,8 +337,8 @@ _METRICS_REGISTRY: dict[str, type[MetricEvaluatorI]] = {
 
 
 def evaluator_builder(configuration: dict, n_workers: int = 1) -> Evaluator:
-    logging.debug(f"Building score builder: {configuration['score_settings']}")
-    score_builder = EvaluateScoreBuilder(configuration=configuration["score_settings"])
+    logging.debug("Building score builder")
+    score_builder = EvaluateScoreBuilder()
     metrics = []
     for evaluator_entry in configuration["evaluators"]:
         logging.info(f"Building evaluator: {evaluator_entry['class']}")
