@@ -1,0 +1,7 @@
+{
+    "class": "ClassName",
+    "params": {
+        "class_param_1": "value",
+        "class_param_2": "value"
+    }
+}
