@@ -18,8 +18,8 @@
         {
             "class": "SacreBleuEvaluator",
             "params":{
-                "smooth_method": "none",
-                "smooth_value": 0,
+                "smooth_method": "add-k",
+                "smooth_value": 10,
                 "tokenize": "intl",
                 "lowercase": false,
                 "force": false,
@@ -29,14 +29,15 @@
         {
             "class": "RougeEvaluator",
             "params": {
-                "use_stemmer": false
+                "use_stemmer": false,
+                "use_aggregator": true
             }
         },
         {
             "class": "MeteorEvaluator",
             "params": {
-                "alpha": 0.9,
-                "beta": 3,
+                "alpha": 0.4,
+                "beta": 6,
                 "gamma": 0.5
             }
         },
