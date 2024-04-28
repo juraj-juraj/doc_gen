@@ -8,7 +8,16 @@ from typing import Protocol, Type
 class ModelI(Protocol):
 
     def __init__(self, *args, **kwargs) -> None: ...
-    def generate(self, code: str) -> str: ...
+    def generate(self, code: str) -> str:
+        """Generates a docstring for the given code.
+
+        Args:
+            code (str): Single python function definition
+
+        Returns:
+            str: Generated docstring for the given code
+        """
+        ...
 
 
 def load_model(model_path: pathlib.Path) -> Type[ModelI]:
