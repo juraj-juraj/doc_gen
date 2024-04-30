@@ -143,6 +143,7 @@ class GrammarEvaluator(BaseModel):
     Args:
         name (str) : Then name of evaluator. Defaults to name of class
         penalty (float) : Penalty given in case of prediction not being structured according to grammar
+        grammar_file (str) : Path to grammar file
 
     """
 
@@ -241,11 +242,14 @@ class RougeEvaluator(BaseModel):
 
     name: str = Field(default="rouge_evaluator")
     n_workers: int | None = Field(default=1, frozen=True)
-    use_stemmer: bool | None = Field(default=False)
+    use_stemmer: bool = Field(default=False)
+    use_aggregator: bool = Field(default=True)
 
     def evaluate(self, preds: list[str], refs: list[list[str]], samples: list[str] | None) -> dict:
         evaluator = evaluate.load("rouge", num_process=self.n_workers)
-        result = evaluator.compute(predictions=preds, references=refs, use_stemmer=self.use_stemmer)
+        result = evaluator.compute(
+            predictions=preds, references=refs, use_stemmer=self.use_stemmer, use_aggregator=self.use_aggregator
+        )
         result["score"] = np.mean([result["rouge1"], result["rouge2"], result["rougeL"]])
         return result
 
@@ -276,7 +280,9 @@ class MeteorEvaluator(BaseModel):
 
     def evaluate(self, preds: list[str], refs: list[list[str]], samples: list[str] | None) -> dict:
         evaluator = evaluate.load("meteor", num_process=self.n_workers)
-        result = evaluator.compute(predictions=preds, references=refs)
+        result = evaluator.compute(
+            predictions=preds, references=refs, alpha=self.alpha, beta=self.beta, gamma=self.gamma
+        )
         result["score"] = result["meteor"]
         return result
 

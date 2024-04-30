@@ -11,8 +11,6 @@ CONFIG_FILE = "config.json"
 class _GeneraConfig(BaseModel):
     model: str
     source_prefix: str
-    commit: str
-
 
 class _CudaSettings(BaseModel):
     quantization: str
