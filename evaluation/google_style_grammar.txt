@@ -2,9 +2,9 @@ start: LINE+ parameters NEWLINE*
 
 parameters: (args_sec NEWLINE* [returns_sec NEWLINE*] [raises_sec])| (args_sec NEWLINE* raises_sec NEWLINE* returns_sec)
 
-raises_sec.1: RAISES_KW NEWLINE+ (ARG_PAIR | LINE_N)+
+raises_sec.1: RAISES_KW NEWLINE+ ARG_PAIR+
 returns_sec: RETURNS_KW NEWLINE+ ANYTHING
-args_sec: ARGS_KW NEWLINE+ (ARG_PAIR | LINE_N)+
+args_sec: ARGS_KW NEWLINE+ ARG_PAIR+
 
 ARG_PAIR.1: DWORD [" "] [TYPE_SPEC] [" "] ":" /./+ [NEWLINE]
 LINE: /./* NEWLINE
