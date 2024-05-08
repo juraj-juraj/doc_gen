@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import enum
 import logging
@@ -14,9 +16,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 CONFIG_FILE = "server_config.json"
-MAX_QUEUE_LEN = 3
-worker_pool = None
-
+worker_pool: PersistentWorkerPool | None = None
+CONFIGURATION: AppConfig | None = None
 
 class AppConfig(BaseModel):
     model_dir: pathlib.Path
@@ -36,7 +37,7 @@ class TaskType(enum.Enum):
 
 class GeneralTask(BaseModel):
     type: TaskType
-    data: typing.Any
+    data: AnnotateRequest
 
 class AnnotateWorker(threading.Thread):
     def __init__(
@@ -58,9 +59,9 @@ class AnnotateWorker(threading.Thread):
             try:
                 match task.type:
                     case TaskType.generate_docstring:
-                        completed_task = docstring_transformer.generate_docstring(task.data, docstring_generator=self.model)
+                        completed_task = docstring_transformer.generate_docstring(task.data.code, docstring_generator=self.model)
                     case TaskType.annotate_code:
-                        completed_task = docstring_transformer.annotate_code(task.data, docstring_generator=self.model)
+                        completed_task = docstring_transformer.annotate_code(task.data.code, docstring_generator=self.model, overwrite_docstrings=task.data.overwrite_docstrings)
                 future_result.set_result(completed_task)
             except Exception as e:
                 logging.error(f"Worker {self.name} raised exception: {e}")
@@ -76,22 +77,22 @@ class PersistentWorkerPool:
     def __init__(
         self,
         worker_initializer_cls: typing.Type[model_loader.ModelI],
-        worker_args: dict | None = None,
-        no_workers: int | None = 1,
-        queue_size: int | None = 1,
+        worker_args: dict[str, typing.Any] = {},
+        no_workers: int = 1,
+        queue_size: int = 1,
     ):
         logging.info("Creating worker pool")
 
-        self.task_queue = queue.Queue(maxsize=queue_size)
+        self.task_queue: queue.Queue[tuple] = queue.Queue(maxsize=queue_size)
         self.workers = [
-            AnnotateWorker(worker_initializer_cls, self.task_queue, **worker_args | {"name": f"worker_{i}"})
+            AnnotateWorker(worker_initializer_cls, self.task_queue, name = f"worker_{i}", **worker_args)
             for i in range(no_workers)
         ]
         [worker.start() for worker in self.workers]
 
-    def submit_task(self, task: GeneralTask) -> asyncio.Future | None:
+    def submit_task(self, task: GeneralTask) -> asyncio.Future:
         logging.info("Creating task to queue")
-        future_result = asyncio.Future()
+        future_result: asyncio.Future = asyncio.Future()
         try:
             self.task_queue.put_nowait((task, future_result))
             logging.info(f"Actual queue size: {self.task_queue.qsize()}")
@@ -101,21 +102,23 @@ class PersistentWorkerPool:
             raise WorkerPoolException("Resource exhausted, try again later")
 
 
+
 @asynccontextmanager
 async def init_workers(app: FastAPI):
     global worker_pool
+    global CONFIGURATION
     module_dir = pathlib.Path(__file__).parent
     json_configuration = (module_dir / CONFIG_FILE).read_text(encoding="utf-8")
-    config = AppConfig.model_validate_json(json_configuration)
+    CONFIGURATION = AppConfig.model_validate_json(json_configuration)
     logging.basicConfig(
-        level=logging.getLevelName(config.log_level.upper()),
+        level=logging.getLevelName(CONFIGURATION.log_level.upper()),
         format="%(asctime)s.%(msecs)03d %(levelname)s - %(funcName)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    logging.info(f"Loaded configuration file: {config}")
-    model_cls = model_loader.load_model(config.model_dir)
-    worker_pool = PersistentWorkerPool(model_cls, {"device": config.device}, config.workers, config.queue_size)
+    logging.info(f"Loaded configuration file: {CONFIGURATION}")
+    model_cls = model_loader.load_model(CONFIGURATION.model_dir)
+    worker_pool = PersistentWorkerPool(model_cls, {"device": CONFIGURATION.device}, CONFIGURATION.workers, CONFIGURATION.queue_size)
     try:
         yield
     finally:
@@ -130,7 +133,7 @@ async def annotate_code(request: AnnotateRequest) -> dict[str, str]:
     global worker_pool
     logging.info("Annotate code request")
     try:
-        task = worker_pool.submit_task(task=GeneralTask(type=TaskType.annotate_code, data=request.code))
+        task = worker_pool.submit_task(task=GeneralTask(type=TaskType.annotate_code, data=request))
 
     except WorkerPoolException as exception:
         raise HTTPException(status_code=429, detail=str(exception))
@@ -144,14 +147,17 @@ async def generate_docstring(request: AnnotateRequest) -> dict[str, str]:
     global worker_pool
     logging.info("Generate docstring request")
     try:
-        task = worker_pool.submit_task(task=GeneralTask(type=TaskType.generate_docstring, data=request.code))
+        task = worker_pool.submit_task(task=GeneralTask(type=TaskType.generate_docstring, data=request))
     except WorkerPoolException as exception:
         raise HTTPException(status_code=429, detail=str(exception))
 
     result = await asyncio.wrap_future(task)
     return {"result": result}
 
+@app.get("/info/")
+async def info() -> AppConfig:
+    global CONFIGURATION
+    if not CONFIGURATION:
+        raise HTTPException(status_code=404, detail="Configuration not loaded")
 
-@app.get("/test_endpoint/")
-async def test_endpoint() -> dict[str, str]:
-    return {"status": "ok"}
+    return CONFIGURATION
