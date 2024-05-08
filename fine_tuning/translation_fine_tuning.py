@@ -3,6 +3,8 @@
 
 # This code is based of https://github.com/huggingface/transformers/blob/main/examples/pytorch/translation/run_translation.py
 # It has been changed to be usable with training coding llm
+# It is not being used now
+# I (Juraj Novosad), am not sole creator of this script
 
 import argparse
 import json

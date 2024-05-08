@@ -1,3 +1,9 @@
+###
+# This module encapsulates fine tuning process
+# This script is inspired and contains parts of code from here https://github.com/huggingface/transformers/blob/main/examples/pytorch/translation/run_translation.py
+# I (Juraj Novosad), am not sole creator of this script
+
+
 import logging
 import os
 import pathlib
