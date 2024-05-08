@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "code_documenter"
-version = "0.0.1"
-description = "Bachelor thesis, aiming to generate documentation from undocumented code"
+version = "1.0.0"
+description = "Bachelor thesis, aiming to generate documentation for undocumented Python code"
 authors = ["Juraj Novosad <xnovos13@vutbr.cz>"]
 
 [tool.poetry.dependencies]
@@ -13,6 +13,8 @@ pylint = "^2.17.5"
 transformers = "^4.33.0"
 accelerate = "^0.22.0"
 sentencepiece = "0.1.99"
+ctranslate2= "^2.13.0"
+sentence-transformers = "^2.7.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.2.0"

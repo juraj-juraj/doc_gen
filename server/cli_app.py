@@ -2,7 +2,8 @@ import argparse
 import importlib as il
 import logging
 import pathlib
-from docstring_transformer import annotate_code
+
+from docstring_transformer import annotate_code, generate_docstring
 from model_loader import load_model
 
 
@@ -53,18 +54,6 @@ def parse_arguments():
 
 
 def main():
-    """
-    Main function to annotate code with a model.
-
-    Args:
-        None
-
-    Returns:
-        None
-
-    Raises:
-        None
-    """
     args = parse_arguments()
     logging.basicConfig(level=logging.getLevelName(args.log_level.upper()))
     model_cls = load_model(args.model)
