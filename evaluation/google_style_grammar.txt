@@ -1,0 +1,30 @@
+start: LINE+ parameters NEWLINE*
+
+parameters: (args_sec NEWLINE* [returns_sec NEWLINE*] [raises_sec])| (args_sec NEWLINE* raises_sec NEWLINE* returns_sec)
+
+raises_sec.1: RAISES_KW NEWLINE+ ARG_PAIR+
+returns_sec: RETURNS_KW NEWLINE+ ANYTHING
+args_sec: ARGS_KW NEWLINE+ ARG_PAIR+
+
+ARG_PAIR.1: DWORD [" "] [TYPE_SPEC] [" "] ":" /./+ [NEWLINE]
+LINE: /./* NEWLINE
+LINE_N: /./+ [NEWLINE]
+ANYTHING: (/./|NEWLINE)+
+
+RETURNS_KW: ("Returns"i | "Return"i) [" "] [":"]
+RAISES_KW: ("Raises"i | "Throws"i | "Raise"i | "Throw"i) [" "] [":"]
+ARGS_KW: ("Args"i | "Arguments"i | "Parameters"i | "Params"i) [" "] ":"
+TYPE_SPEC: "(" DWORD ")"
+
+DIGITLETTER: LETTER|DIGIT|"_"
+DWORD: DIGITLETTER+
+NEWLINE: (CR? LF)
+
+%import common.LETTER
+%import common.WS
+%import common.DIGIT
+%import common.CR
+%import common.LF
+
+// Disregard spaces in text
+%ignore WS

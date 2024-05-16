@@ -2,8 +2,7 @@
     "general":
     {
         "model": "juraj-juraj/codet5p-220m-docstring",
-        "source_prefix": "Generate docstring to python function:\n",
-        "commit": "dc93f9d87e6f44c29b7404304045ae62d27ca812"
+        "source_prefix": "Generate docstring to python function:\n"
     },
     "cuda": {
         "quantization": "float16"

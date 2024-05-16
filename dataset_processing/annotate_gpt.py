@@ -3,7 +3,6 @@ import logging
 import sys
 import time
 from threading import Thread
-
 import backoff
 import openai
 import pandas as pd
@@ -47,45 +46,76 @@ class completion_worker(Thread):
         return response.choices[0].message.content.strip('"')
 
     def run(self):
+        """
+        Runs the worker by sending requests for each code in self.series and storing the result in self.result. 
+        Logs the completion of the worker with the worker ID as the message.
+        """
         docstrings = [self._send_request(code) for code in self.series]
         logging.info(f"Worker {self.worker_id}: Finished")
         self.result = pd.DataFrame({"function": self.series, "docstring": docstrings})
 
 
 def main():
+    """
+    Main function to process OpenAI data and save the result to a pickle file.
+
+    Args:
+        args (argparse.Namespace): The arguments provided to the function.
+            -k, --api_key (str): The OpenAI API key.
+            --range (int, list): Range of rows to process.
+            -l, --log_level (str): Log level.
+            -w, --workers (int): Number of workers.
+            input (str): Input file.
+            -o, --output (str): Output file.
+
+    Returns:
+        None. The function reads the raw data, processes the rows, and saves the result to a pickle file.
+    """
     start_time = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--api_key", type=str, help="OpenAI API key")
-    parser.add_argument("--range", nargs=2, type=int, default=[0, sys.maxsize], help="Range of rows to process")
-    parser.add_argument("-l", "--log_level", type=logging.getLevelName, default="WARNING", help="Log level")
-    parser.add_argument("-w", "--workers", type=int, default=5, help="Number of workers")
+    parser.add_argument(
+        "--range",
+        nargs=2,
+        type=int,
+        default=[0, sys.maxsize],
+        help="Range of rows to process",
+    )
+    parser.add_argument(
+        "-l",
+        "--log_level",
+        type=logging.getLevelName,
+        default="WARNING",
+        help="Log level",
+    )
+    parser.add_argument(
+        "-w", "--workers", type=int, default=5, help="Number of workers"
+    )
     parser.add_argument("input", type=str, help="Input file")
     parser.add_argument("-o", "--output", type=str, help="Output file")
-
     args = parser.parse_args()
     setup_logging(args.log_level)
-
     raw_data = pd.read_pickle(args.input)
     df = pd.DataFrame(raw_data)
     logging.info(f"Loaded {len(df)} rows")
-
     df = df.iloc[args.range[0] : args.range[1]]["function"].copy()
     logging.info(f"Processing {len(df)} rows")
-
     chunk_size = len(df) // args.workers
     chunks = [df.iloc[i : i + chunk_size] for i in range(0, len(df), chunk_size)]
-    workers = [completion_worker(chunk, args.api_key, id) for chunk, id in zip(chunks, range(args.workers))]
-
+    workers = [
+        completion_worker(chunk, args.api_key, id)
+        for (chunk, id) in zip(chunks, range(args.workers))
+    ]
     [worker.start() for worker in workers]
     [worker.join() for worker in workers]
-
     result = pd.concat([worker.result for worker in workers])
     result.reset_index(inplace=True, drop=True)
-
     result[["function", "docstring"]].to_pickle(args.output)
     logging.info(f"Finished in {time.time() - start_time} seconds")
     logging.info(f"Processes {len(result)} rows")
-    logging.info(f"Processing rate: {len(result) / (time.time() - start_time)} functions per second")
+    logging.info(
+        f"Processing rate: {len(result) / (time.time() - start_time)} functions per second"
+    )
 
 
 if __name__ == "__main__":
