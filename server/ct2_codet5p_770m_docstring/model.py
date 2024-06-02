@@ -48,7 +48,7 @@ class Model:
         compute_type = self.config.cuda.quantization if kwargs["device"] == "cuda" else self.config.cpu.quantization
         logging.debug(f"Using compute type: {compute_type}")
         self.model = ctranslate2.Translator(
-            str(module_dir / "data"), device=kwargs["device"], compute_type=compute_type
+            str(module_dir / "data"), device=kwargs["device"], compute_type=compute_type, intra_threads=1
         )
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.config.general.model)
 
