@@ -1,0 +1,13 @@
+Total time: 19.927313327789307
+Total loc: 1458
+Total words: 4426
+Total functions: 75
+Lines per second: 73.16590932339936
+Words per second: 222.10721170464032
+Average latency per function: 0.26569751103719075
+Server configuration
+    model_dir: ct2_codet5p_220m_docstring
+    device: cuda
+    workers: 2
+    queue_size: 4
+    log_level: info

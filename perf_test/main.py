@@ -72,7 +72,7 @@ async def annotate_consumer(queue: asyncio.Queue, stop_event: asyncio.Event, url
             )
             if response.status_code == 429:
                 raise TooManyRequestsException()
-            assert response.status_code != 200
+            assert response.status_code == 200
 
 
 async def data_producer(queue: asyncio.Queue, stop_event: asyncio.Event, fces: FunctionsDataContainer):
